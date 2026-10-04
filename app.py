@@ -354,7 +354,115 @@ if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_conta
     if remaining_after_living < 0:
         st.error("Các khoản đã chọn vượt quá số dư dự kiến. Hãy thử bỏ chọn hoặc giảm một khoản.")
 
-st.subheader("6. 💬 Hỏi trợ lý chi tiêu")
+st.subheader("6. 🧾 Ghi khoản vừa chi")
+st.caption(
+    "Vừa mua món gì thì ghi lại ở đây. App sẽ cộng chi tiêu trong tháng và so với ngân sách sinh hoạt bạn đã nhập ở mục 2."
+)
+
+if "actual_expenses" not in st.session_state:
+    st.session_state.actual_expenses = []
+
+expense_name_col, expense_category_col = st.columns([2, 1])
+expense_name_key = f"actual_expense_name_{len(st.session_state.actual_expenses)}"
+with expense_name_col:
+    actual_expense_name = st.text_input(
+        "Bạn vừa mua gì?", placeholder="Ví dụ: Ăn trưa, sữa, áo thun", key=expense_name_key
+    )
+with expense_category_col:
+    actual_expense_category = st.selectbox(
+        "Nhóm chi", ["Ăn uống", "Mua sắm", "Đi lại", "Khác"], key="actual_expense_category"
+    )
+
+expense_amount_col, expense_date_col = st.columns(2)
+with expense_amount_col:
+    actual_expense_amount = amount_input(
+        f"Số tiền đã chi ({unit_label})", 0.0, f"actual_expense_amount_{currency}", is_vnd
+    )
+with expense_date_col:
+    actual_expense_date = st.date_input(
+        "Ngày mua", value=date.today(), key="actual_expense_date"
+    )
+
+if st.button("➕ Lưu khoản chi", key="save_actual_expense"):
+    if not actual_expense_name.strip():
+        st.warning("Bạn nhập tên món hoặc khoản vừa mua trước nhé.")
+    elif actual_expense_amount <= 0:
+        st.warning("Bạn nhập số tiền lớn hơn 0 nhé.")
+    else:
+        st.session_state.actual_expenses.append(
+            {
+                "name": actual_expense_name.strip(),
+                "category": actual_expense_category,
+                "amount": actual_expense_amount,
+                "currency": currency,
+                "date": actual_expense_date,
+            }
+        )
+        st.success("Đã lưu khoản chi.")
+
+month_expenses = [
+    item for item in st.session_state.actual_expenses
+    if item["currency"] == currency
+    and item["date"].year == date.today().year
+    and item["date"].month == date.today().month
+]
+actual_month_total = sum(item["amount"] for item in month_expenses)
+expense_budget_by_category = {
+    "Ăn uống": living_expenses[0]["amount"],
+    "Mua sắm": living_expenses[1]["amount"],
+    "Đi lại": living_expenses[2]["amount"],
+}
+summary_col1, summary_col2 = st.columns(2)
+summary_col1.metric("Tổng đã chi trong tháng", money(actual_month_total))
+actual_in_budget_categories = sum(
+    item["amount"]
+    for item in month_expenses
+    if item["category"] in expense_budget_by_category
+)
+summary_col2.metric(
+    "Ngân sách 3 nhóm còn lại",
+    money(sum(expense_budget_by_category.values()) - actual_in_budget_categories),
+)
+
+if month_expenses:
+    st.markdown("#### Chi tiết theo nhóm")
+    for category in ["Ăn uống", "Mua sắm", "Đi lại", "Khác"]:
+        actual_for_category = sum(
+            item["amount"] for item in month_expenses if item["category"] == category
+        )
+        if category == "Khác":
+            st.write(f"- **{category}:** đã chi {money(actual_for_category)}")
+        else:
+            category_left = expense_budget_by_category[category] - actual_for_category
+            st.write(
+                f"- **{category}:** đã chi {money(actual_for_category)} / "
+                f"ngân sách {money(expense_budget_by_category[category])}; "
+                f"còn {money(category_left)}"
+            )
+    st.markdown("#### Các khoản đã ghi trong tháng này")
+    for item in sorted(month_expenses, key=lambda entry: entry["date"], reverse=True):
+        st.write(
+            f"- {item['date']:%d/%m/%Y} · {item['name']} ({item['category']}) — {money(item['amount'])}"
+        )
+else:
+    st.caption("Bạn chưa ghi khoản chi nào trong tháng này.")
+
+expense_csv_buffer = io.StringIO()
+expense_writer = csv.writer(expense_csv_buffer)
+expense_writer.writerow(["Ngày", "Món / khoản chi", "Nhóm", "Số tiền", "Đơn vị"])
+for item in st.session_state.actual_expenses:
+    expense_writer.writerow(
+        [item["date"].isoformat(), item["name"], item["category"], item["amount"], item["currency"]]
+    )
+st.download_button(
+    "⬇️ Tải lịch sử chi tiêu CSV",
+    data=("\ufeff" + expense_csv_buffer.getvalue()).encode("utf-8"),
+    file_name=f"chi_tieu_thuc_te_{date.today():%Y%m}.csv",
+    mime="text/csv",
+    use_container_width=True,
+)
+
+st.subheader("7. 💬 Hỏi trợ lý chi tiêu")
 st.caption(
     "Bạn có thể hỏi về một món đồ đang định mua, cách chia ngân sách hoặc nên mua ngay hay để dành lần sau. "
     "Trợ lý sẽ tham khảo số liệu bạn vừa nhập để gợi ý."
@@ -407,7 +515,8 @@ if user_question:
             f"hóa đơn chưa trả {money(total_all_unpaid)}; tiền tiết kiệm dự kiến {money(savings_reserve)}; "
             f"khoản dự phòng {money(emergency_buffer)}; còn lại sau lương và các hóa đơn là "
             f"{money(projected_after_payday)}; còn lại nếu chi các khoản sinh hoạt đã chọn là "
-            f"{money(remaining_after_selected_living)}. Đây chỉ là dữ liệu người dùng tự nhập, chưa xác minh với ngân hàng."
+            f"{money(remaining_after_selected_living)}; đã ghi chi tiêu tháng này {money(actual_month_total)}. "
+            "Đây chỉ là dữ liệu người dùng tự nhập, chưa xác minh với ngân hàng."
         )
         request_messages = [
             {"role": "system", "content": system_prompt},
