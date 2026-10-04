@@ -15,14 +15,59 @@ st.set_page_config(
 currency = st.selectbox("Đơn vị tiền tệ", ["VND", "USD"], key="currency_choice")
 is_vnd = currency == "VND"
 unit_label = "VND" if is_vnd else "USD"
-step = 100_000.0 if is_vnd else 10.0
-number_format = "%.0f" if is_vnd else "%.2f"
 
 
 def money(amount):
     if is_vnd:
         return f"{amount:,.0f}".replace(",", ".") + " VND"
     return f"${amount:,.2f}"
+
+
+def parse_amount(raw, use_vnd):
+    text = str(raw).strip().lower().replace("₫", "").replace("vnd", "").replace("$", "").replace("usd", "").replace(" ", "")
+    if not text:
+        return 0.0
+    if use_vnd and "tr" in text:
+        return max(0.0, float(text.replace("tr", "").replace(",", ".")) * 1_000_000)
+    if use_vnd and "," in text and "." not in text:
+        return max(0.0, float(text.replace(",", ".")) * 1_000_000)
+    if use_vnd:
+        return max(0.0, float(text.replace(".", "").replace(",", "")))
+    return max(0.0, float(text.replace(",", "")))
+
+
+def format_amount_input(amount, use_vnd):
+    return f"{amount:,.0f}".replace(",", ".") if use_vnd else f"{amount:,.2f}"
+
+
+def normalize_amount_input(key, use_vnd):
+    try:
+        st.session_state[key] = format_amount_input(
+            parse_amount(st.session_state[key], use_vnd), use_vnd
+        )
+    except ValueError:
+        pass
+
+
+def amount_input(label, initial_value, key, use_vnd, help_text=None):
+    input_key = f"{key}_formatted"
+    if input_key not in st.session_state:
+        st.session_state[input_key] = format_amount_input(initial_value, use_vnd)
+    raw_value = st.text_input(
+        label,
+        key=input_key,
+        on_change=normalize_amount_input,
+        args=(input_key, use_vnd),
+        help=help_text or (
+            "Nhập số đầy đủ hoặc dạng triệu, ví dụ 1,5 hay 1,5tr = 1.500.000 VND."
+            if use_vnd else "Dùng dấu phẩy ngăn cách hàng nghìn và dấu chấm cho phần lẻ, ví dụ 1,500.00."
+        ),
+    )
+    try:
+        return parse_amount(raw_value, use_vnd)
+    except ValueError:
+        st.warning(f"{label}: vui lòng nhập số tiền hợp lệ.")
+        return 0.0
 
 
 payment_options = (
@@ -69,48 +114,34 @@ st.subheader("1. Tình hình tiền hiện tại")
 now = date.today()
 col_balance, col_payday, col_paycheck = st.columns(3)
 with col_balance:
-    current_balance = st.number_input(
-        f"Số dư hiện có ({unit_label})", min_value=0.0,
-        value=36_000_000.0 if is_vnd else 1800.0,
-        step=step if is_vnd else 50.0, format=number_format, key=f"balance_{currency}"
+    current_balance = amount_input(
+        f"Số dư hiện có ({unit_label})", 36_000_000.0 if is_vnd else 1800.0,
+        f"balance_{currency}", is_vnd
     )
 with col_payday:
     payday = st.date_input("Ngày nhận lương tiếp theo", value=now + timedelta(days=14))
 with col_paycheck:
-    paycheck_amount = st.number_input(
-        f"Lương dự kiến nhận ({unit_label})", min_value=0.0,
-        value=34_000_000.0 if is_vnd else 1700.0,
-        step=step if is_vnd else 50.0, format=number_format, key=f"paycheck_{currency}"
+    paycheck_amount = amount_input(
+        f"Lương dự kiến nhận ({unit_label})", 34_000_000.0 if is_vnd else 1700.0,
+        f"paycheck_{currency}", is_vnd
     )
 
 col_income, col_savings, col_buffer = st.columns(3)
 with col_income:
-    other_income = st.number_input(
-        f"Thu nhập khác trước ngày lương ({unit_label})",
-        min_value=0.0,
-        value=0.0,
-        step=step if is_vnd else 25.0,
-        format=number_format,
-        key=f"other_income_{currency}",
-        help="Chỉ tính khoản bạn dự kiến chắc chắn nhận trước ngày lương tiếp theo.",
+    other_income = amount_input(
+        f"Thu nhập khác trước ngày lương ({unit_label})", 0.0,
+        f"other_income_{currency}", is_vnd,
+        help_text="Chỉ tính khoản bạn dự kiến chắc chắn nhận trước ngày lương tiếp theo.",
     )
 with col_savings:
-    savings_reserve = st.number_input(
-        f"Muốn dành riêng để tiết kiệm ({unit_label})",
-        min_value=0.0,
-        value=3_000_000.0 if is_vnd else 150.0,
-        step=step if is_vnd else 25.0,
-        format=number_format,
-        key=f"savings_{currency}",
+    savings_reserve = amount_input(
+        f"Muốn dành riêng để tiết kiệm ({unit_label})", 3_000_000.0 if is_vnd else 150.0,
+        f"savings_{currency}", is_vnd,
     )
 with col_buffer:
-    emergency_buffer = st.number_input(
-        f"Khoản dự phòng không muốn tiêu ({unit_label})",
-        min_value=0.0,
-        value=4_000_000.0 if is_vnd else 200.0,
-        step=step if is_vnd else 25.0,
-        format=number_format,
-        key=f"buffer_{currency}",
+    emergency_buffer = amount_input(
+        f"Khoản dự phòng không muốn tiêu ({unit_label})", 4_000_000.0 if is_vnd else 200.0,
+        f"buffer_{currency}", is_vnd,
     )
 
 if payday < now:
@@ -139,14 +170,10 @@ for index in range(int(bill_count)):
             placeholder="Tên hóa đơn",
         )
     with amount_col:
-        bill_amount = st.number_input(
+        bill_amount = amount_input(
             f"Số tiền ({unit_label})",
-            min_value=0.0,
-            value=([20_000_000.0, 1_500_000.0, 600_000.0][index] if is_vnd else [950.0, 140.0, 70.0][index]) if index < 3 else 0.0,
-            step=step,
-            format=number_format,
-            key=f"bill_amount_{currency}_{index}",
-            label_visibility="collapsed",
+            ([20_000_000.0, 1_500_000.0, 600_000.0][index] if is_vnd else [950.0, 140.0, 70.0][index]) if index < 3 else 0.0,
+            f"bill_amount_{currency}_{index}", is_vnd,
         )
     with due_col:
         due_date = st.date_input(
@@ -249,6 +276,57 @@ if projected_after_payday < 0:
     st.error(f"Sau các khoản đã nhập, dự kiến còn thiếu {money(abs(projected_after_payday))}.")
 else:
     st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
+
+st.subheader("5. Thử tính chi phí sinh hoạt trong tháng")
+st.caption(
+    "Nhập khoản dự kiến cho tháng này, rồi tích chọn những khoản bạn muốn tính thử. "
+    "Khoản không tích chọn sẽ không bị trừ khỏi số dư dự kiến."
+)
+
+living_expense_defaults = (
+    [3_000_000.0, 1_500_000.0, 1_000_000.0]
+    if is_vnd
+    else [300.0, 150.0, 80.0]
+)
+living_expense_labels = ["🍜 Tiền ăn / đi chợ", "🛍️ Mua sắm", "🚌 Đi lại"]
+living_expenses = []
+for index, (expense_label, default_amount) in enumerate(
+    zip(living_expense_labels, living_expense_defaults)
+):
+    expense_col, include_col = st.columns([3, 1])
+    with expense_col:
+        expense_amount = amount_input(
+            f"{expense_label} ({unit_label})",
+            default_amount,
+            f"living_expense_{currency}_{index}",
+            is_vnd,
+        )
+    with include_col:
+        st.write("")
+        include_expense = st.checkbox(
+            "Tính khoản này",
+            value=False,
+            key=f"include_living_expense_{currency}_{index}",
+        )
+    living_expenses.append(
+        {"name": expense_label, "amount": expense_amount, "include": include_expense}
+    )
+
+if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_container_width=True):
+    selected_living_expenses = [item for item in living_expenses if item["include"]]
+    living_expense_total = sum(item["amount"] for item in selected_living_expenses)
+    remaining_after_living = projected_after_payday - living_expense_total
+
+    st.markdown("#### Kết quả kịch bản chi tiêu")
+    result_col1, result_col2 = st.columns(2)
+    result_col1.metric("Tổng khoản sinh hoạt đã chọn", money(living_expense_total))
+    result_col2.metric("Còn lại sau các khoản đã chọn", money(remaining_after_living))
+    if selected_living_expenses:
+        st.write("**Đã tính:** " + ", ".join(item["name"] for item in selected_living_expenses))
+    else:
+        st.info("Bạn chưa chọn khoản sinh hoạt nào nên số dư dự kiến không thay đổi.")
+    if remaining_after_living < 0:
+        st.error("Các khoản đã chọn vượt quá số dư dự kiến. Hãy thử bỏ chọn hoặc giảm một khoản.")
 
 # Tải lịch kế hoạch để lưu hoặc chia sẻ.
 csv_buffer = io.StringIO()
