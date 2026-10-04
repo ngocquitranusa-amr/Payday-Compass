@@ -12,8 +12,25 @@ st.set_page_config(
 )
 
 
-def dollars(amount):
+currency = st.selectbox("Đơn vị tiền tệ", ["VND", "USD"], key="currency_choice")
+is_vnd = currency == "VND"
+unit_label = "VND" if is_vnd else "USD"
+step = 100_000.0 if is_vnd else 10.0
+number_format = "%.0f" if is_vnd else "%.2f"
+
+
+def money(amount):
+    if is_vnd:
+        return f"{amount:,.0f}".replace(",", ".") + " VND"
     return f"${amount:,.2f}"
+
+
+payment_options = (
+    ["Sacombank", "VietinBank", "MB Bank"]
+    if is_vnd
+    else ["Venmo", "Zelle"]
+)
+payment_method = st.selectbox("Ngân hàng / phương thức thanh toán", payment_options)
 
 
 st.title("🧭 Payday Compass")
@@ -37,50 +54,63 @@ for column, (icon, title, detail) in zip(feature_columns, features):
             st.markdown(f"**{title}**")
             st.caption(detail)
 
-st.info(
-    "Bản demo dùng USD và dữ liệu do bạn nhập. Không kết nối ngân hàng, "
-    "không tự động đọc giao dịch và không chuyển tiền."
-)
+if is_vnd:
+    st.info(
+        f"Đang dùng VND và chọn {payment_method}. Đây là lựa chọn để minh họa trong app; "
+        "app chưa kết nối tài khoản hoặc tự chuyển tiền. Bạn cần xác nhận giao dịch trong ứng dụng ngân hàng chính thức."
+    )
+else:
+    st.info(
+        f"Đang dùng USD và chọn {payment_method}. Đây là lựa chọn để minh họa trong app; "
+        "app chưa kết nối tài khoản hoặc tự chuyển tiền. Bạn cần xác nhận giao dịch trong ứng dụng chính thức."
+    )
 
 st.subheader("1. Tình hình tiền hiện tại")
 now = date.today()
 col_balance, col_payday, col_paycheck = st.columns(3)
 with col_balance:
     current_balance = st.number_input(
-        "Số dư hiện có (USD)", min_value=0.0, value=1800.0, step=50.0, format="%.2f"
+        f"Số dư hiện có ({unit_label})", min_value=0.0,
+        value=36_000_000.0 if is_vnd else 1800.0,
+        step=step if is_vnd else 50.0, format=number_format, key=f"balance_{currency}"
     )
 with col_payday:
     payday = st.date_input("Ngày nhận lương tiếp theo", value=now + timedelta(days=14))
 with col_paycheck:
     paycheck_amount = st.number_input(
-        "Lương dự kiến nhận (USD)", min_value=0.0, value=1700.0, step=50.0, format="%.2f"
+        f"Lương dự kiến nhận ({unit_label})", min_value=0.0,
+        value=34_000_000.0 if is_vnd else 1700.0,
+        step=step if is_vnd else 50.0, format=number_format, key=f"paycheck_{currency}"
     )
 
 col_income, col_savings, col_buffer = st.columns(3)
 with col_income:
     other_income = st.number_input(
-        "Thu nhập khác trước ngày lương (USD)",
+        f"Thu nhập khác trước ngày lương ({unit_label})",
         min_value=0.0,
         value=0.0,
-        step=25.0,
-        format="%.2f",
+        step=step if is_vnd else 25.0,
+        format=number_format,
+        key=f"other_income_{currency}",
         help="Chỉ tính khoản bạn dự kiến chắc chắn nhận trước ngày lương tiếp theo.",
     )
 with col_savings:
     savings_reserve = st.number_input(
-        "Muốn dành riêng để tiết kiệm (USD)",
+        f"Muốn dành riêng để tiết kiệm ({unit_label})",
         min_value=0.0,
-        value=150.0,
-        step=25.0,
-        format="%.2f",
+        value=3_000_000.0 if is_vnd else 150.0,
+        step=step if is_vnd else 25.0,
+        format=number_format,
+        key=f"savings_{currency}",
     )
 with col_buffer:
     emergency_buffer = st.number_input(
-        "Khoản dự phòng không muốn tiêu (USD)",
+        f"Khoản dự phòng không muốn tiêu ({unit_label})",
         min_value=0.0,
-        value=200.0,
-        step=25.0,
-        format="%.2f",
+        value=4_000_000.0 if is_vnd else 200.0,
+        step=step if is_vnd else 25.0,
+        format=number_format,
+        key=f"buffer_{currency}",
     )
 
 if payday < now:
@@ -110,12 +140,12 @@ for index in range(int(bill_count)):
         )
     with amount_col:
         bill_amount = st.number_input(
-            "Số tiền (USD)",
+            f"Số tiền ({unit_label})",
             min_value=0.0,
-            value=[950.0, 140.0, 70.0][index] if index < 3 else 0.0,
-            step=10.0,
-            format="%.2f",
-            key=f"bill_amount_{index}",
+            value=([20_000_000.0, 1_500_000.0, 600_000.0][index] if is_vnd else [950.0, 140.0, 70.0][index]) if index < 3 else 0.0,
+            step=step,
+            format=number_format,
+            key=f"bill_amount_{currency}_{index}",
             label_visibility="collapsed",
         )
     with due_col:
@@ -146,7 +176,9 @@ bills_due_before_payday = [
 bills_due_later = [
     bill for bill in bills if not bill["paid"] and bill["due_date"] > payday
 ]
+unpaid_bills = [bill for bill in bills if not bill["paid"]]
 total_due = sum(bill["amount"] for bill in bills_due_before_payday)
+total_all_unpaid = sum(bill["amount"] for bill in unpaid_bills)
 
 st.subheader("3. Ngân sách từ hôm nay đến ngày nhận lương")
 funds_before_payday = current_balance + other_income
@@ -157,19 +189,19 @@ days_for_daily_budget = max(1, days_until_payday)
 daily_limit = safe_to_spend / days_for_daily_budget
 
 metric1, metric2, metric3 = st.columns(3)
-metric1.metric("Hóa đơn cần trả trước kỳ lương", dollars(total_due))
-metric2.metric("Còn có thể phân bổ", dollars(safe_to_spend))
-metric3.metric("Mức chi trung bình mỗi ngày", dollars(daily_limit))
+metric1.metric("Hóa đơn cần trả trước kỳ lương", money(total_due))
+metric2.metric("Còn có thể phân bổ", money(safe_to_spend))
+metric3.metric("Mức chi trung bình mỗi ngày", money(daily_limit))
 
 if shortfall > 0:
     st.error(
-        f"Theo số liệu đã nhập, đang thiếu {dollars(shortfall)} để thanh toán hóa đơn, "
+        f"Theo số liệu đã nhập, đang thiếu {money(shortfall)} để thanh toán hóa đơn, "
         "giữ khoản tiết kiệm và khoản dự phòng như kế hoạch. Hãy kiểm tra số liệu hoặc điều chỉnh kế hoạch."
     )
 else:
     st.success(
         f"Sau khi trừ hóa đơn đến hạn, tiền tiết kiệm và khoản dự phòng, "
-        f"bạn còn {dollars(safe_to_spend)} có thể phân bổ đến kỳ lương tiếp theo."
+        f"bạn còn {money(safe_to_spend)} có thể phân bổ đến kỳ lương tiếp theo."
     )
 
 if days_until_payday == 0:
@@ -181,38 +213,63 @@ if bills_due_before_payday:
     st.markdown("#### Các hóa đơn được tính vào ngân sách kỳ này")
     for bill in bills_due_before_payday:
         late_label = " · đã quá hạn" if bill["due_date"] < now else ""
-        st.write(f"- {bill['name']} — {dollars(bill['amount'])}, đến hạn {bill['due_date']:%b %d}{late_label}")
+        st.write(f"- {bill['name']} — {money(bill['amount'])}, đến hạn {bill['due_date']:%d/%m/%Y}{late_label}")
 else:
     st.write("Chưa có hóa đơn chưa thanh toán đến hạn trước kỳ lương tiếp theo.")
 
 if bills_due_later:
     with st.expander("Hóa đơn chưa đến hạn trong kỳ này"):
         for bill in bills_due_later:
-            st.write(f"- {bill['name']} — {dollars(bill['amount'])}, đến hạn {bill['due_date']:%b %d}")
+            st.write(f"- {bill['name']} — {money(bill['amount'])}, đến hạn {bill['due_date']:%d/%m/%Y}")
 
-projected_after_payday = money_after_reserves + paycheck_amount
-st.metric(
-    "Số dư dự kiến sau kỳ lương (nếu không phát sinh khoản khác)",
-    dollars(projected_after_payday),
-    help="Ước tính số tiền còn lại sau các khoản đã nhập và cộng lương dự kiến; chi tiêu khác chưa được trừ.",
+projected_after_payday = (
+    current_balance
+    + other_income
+    + paycheck_amount
+    - total_all_unpaid
+    - savings_reserve
+    - emergency_buffer
 )
+st.subheader("4. Còn bao nhiêu sau khi nhận lương và trả hết chi phí đã nhập?")
+st.caption(
+    "Ước tính này trừ toàn bộ hóa đơn chưa đánh dấu đã trả, kể cả khoản đến hạn sau ngày lương, "
+    "rồi trừ tiền tiết kiệm và khoản dự phòng đã đặt."
+)
+projection_cols = st.columns(4)
+projection_cols[0].metric("Số dư hiện tại", money(current_balance))
+projection_cols[1].metric("Thu nhập trước ngày lương", money(other_income))
+projection_cols[2].metric("Lương sắp nhận", money(paycheck_amount))
+projection_cols[3].metric("Tổng hóa đơn chưa trả", money(total_all_unpaid))
+st.write(
+    f"**Phép tính:** {money(current_balance)} + {money(other_income)} + "
+    f"{money(paycheck_amount)} − {money(total_all_unpaid)} − "
+    f"{money(savings_reserve)} tiết kiệm − {money(emergency_buffer)} dự phòng"
+)
+if projected_after_payday < 0:
+    st.error(f"Sau các khoản đã nhập, dự kiến còn thiếu {money(abs(projected_after_payday))}.")
+else:
+    st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
 
 # Tải lịch kế hoạch để lưu hoặc chia sẻ.
 csv_buffer = io.StringIO()
 writer = csv.writer(csv_buffer)
 writer.writerow(["Payday Compass - kế hoạch ngân sách"])
 writer.writerow(["Ngày nhận lương", payday.isoformat()])
-writer.writerow(["Số dư hiện có (USD)", f"{current_balance:.2f}"])
-writer.writerow(["Thu nhập khác trước ngày lương (USD)", f"{other_income:.2f}"])
-writer.writerow(["Tiết kiệm dự kiến (USD)", f"{savings_reserve:.2f}"])
-writer.writerow(["Khoản dự phòng (USD)", f"{emergency_buffer:.2f}"])
+writer.writerow([f"Đơn vị tiền tệ", currency])
+writer.writerow([f"Ngân hàng / phương thức", payment_method])
+writer.writerow([f"Số dư hiện có ({currency})", f"{current_balance:.0f}" if is_vnd else f"{current_balance:.2f}"])
+writer.writerow([f"Thu nhập khác trước ngày lương ({currency})", f"{other_income:.0f}" if is_vnd else f"{other_income:.2f}"])
+writer.writerow([f"Tiết kiệm dự kiến ({currency})", f"{savings_reserve:.0f}" if is_vnd else f"{savings_reserve:.2f}"])
+writer.writerow([f"Khoản dự phòng ({currency})", f"{emergency_buffer:.0f}" if is_vnd else f"{emergency_buffer:.2f}"])
+writer.writerow([f"Tổng hóa đơn chưa thanh toán ({currency})", f"{total_all_unpaid:.0f}" if is_vnd else f"{total_all_unpaid:.2f}"])
+writer.writerow([f"Dự kiến còn lại sau lương và hóa đơn đã nhập ({currency})", f"{projected_after_payday:.0f}" if is_vnd else f"{projected_after_payday:.2f}"])
 writer.writerow([])
-writer.writerow(["Tên hóa đơn", "Số tiền USD", "Ngày đến hạn", "Đã thanh toán", "Được tính kỳ này"])
+writer.writerow(["Tên hóa đơn", f"Số tiền {currency}", "Ngày đến hạn", "Đã thanh toán", "Được tính kỳ này"])
 for bill in bills:
     include_now = (not bill["paid"]) and bill["due_date"] <= payday
     writer.writerow([
         bill["name"],
-        f"{bill['amount']:.2f}",
+        f"{bill['amount']:.0f}" if is_vnd else f"{bill['amount']:.2f}",
         bill["due_date"].isoformat(),
         "Có" if bill["paid"] else "Không",
         "Có" if include_now else "Không",
