@@ -144,13 +144,16 @@ with col_buffer:
         f"buffer_{currency}", is_vnd,
     )
 
+section1_total = st.empty()
+
 if payday < now:
     st.error("Ngày nhận lương tiếp theo không thể ở trong quá khứ.")
     st.stop()
 
 days_until_payday = (payday - now).days
 
-st.subheader("2. Hóa đơn chưa thanh toán")
+st.subheader("2. Hóa đơn và chi tiêu dự kiến")
+st.markdown("#### Hóa đơn chưa thanh toán")
 bill_count = st.number_input(
     "Số hóa đơn muốn thêm", min_value=1, max_value=12, value=3, step=1
 )
@@ -207,6 +210,40 @@ unpaid_bills = [bill for bill in bills if not bill["paid"]]
 total_due = sum(bill["amount"] for bill in bills_due_before_payday)
 total_all_unpaid = sum(bill["amount"] for bill in unpaid_bills)
 
+st.markdown("#### Chi phí sinh hoạt muốn tính thử")
+st.caption(
+    "Nhập khoản dự kiến cho tháng này, rồi tích chọn những khoản bạn muốn tính thử. "
+    "Khoản không tích chọn sẽ không bị trừ khỏi số dư dự kiến."
+)
+living_expense_defaults = (
+    [3_000_000.0, 1_500_000.0, 1_000_000.0]
+    if is_vnd
+    else [300.0, 150.0, 80.0]
+)
+living_expense_labels = ["🍜 Tiền ăn / đi chợ", "🛍️ Mua sắm", "🚌 Đi lại"]
+living_expenses = []
+for index, (expense_label, default_amount) in enumerate(
+    zip(living_expense_labels, living_expense_defaults)
+):
+    expense_col, include_col = st.columns([3, 1])
+    with expense_col:
+        expense_amount = amount_input(
+            f"{expense_label} ({unit_label})",
+            default_amount,
+            f"living_expense_{currency}_{index}",
+            is_vnd,
+        )
+    with include_col:
+        st.write("")
+        include_expense = st.checkbox(
+            "Tính khoản này",
+            value=False,
+            key=f"include_living_expense_{currency}_{index}",
+        )
+    living_expenses.append(
+        {"name": expense_label, "amount": expense_amount, "include": include_expense}
+    )
+
 st.subheader("3. Ngân sách từ hôm nay đến ngày nhận lương")
 funds_before_payday = current_balance + other_income
 money_after_reserves = funds_before_payday - total_due - savings_reserve - emergency_buffer
@@ -257,6 +294,25 @@ projected_after_payday = (
     - savings_reserve
     - emergency_buffer
 )
+selected_living_total = sum(
+    item["amount"] for item in living_expenses if item["include"]
+)
+remaining_after_selected_living = projected_after_payday - selected_living_total
+with section1_total.container():
+    st.markdown("#### Tổng tiền còn lại sau khi tính các khoản đã nhập")
+    total_col1, total_col2 = st.columns(2)
+    total_col1.metric(
+        "Sau lương, hóa đơn, tiết kiệm và dự phòng",
+        money(projected_after_payday),
+    )
+    total_col2.metric(
+        "Nếu chi các khoản sinh hoạt đã chọn",
+        money(remaining_after_selected_living),
+    )
+    st.caption(
+        "Tổng này tự cập nhật khi bạn thay đổi số liệu. Chi phí sinh hoạt chỉ bị trừ khi bạn tích chọn ở mục 2."
+    )
+
 st.subheader("4. Còn bao nhiêu sau khi nhận lương và trả hết chi phí đã nhập?")
 st.caption(
     "Ước tính này trừ toàn bộ hóa đơn chưa đánh dấu đã trả, kể cả khoản đến hạn sau ngày lương, "
@@ -277,45 +333,11 @@ if projected_after_payday < 0:
 else:
     st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
 
-st.subheader("5. Thử tính chi phí sinh hoạt trong tháng")
-st.caption(
-    "Nhập khoản dự kiến cho tháng này, rồi tích chọn những khoản bạn muốn tính thử. "
-    "Khoản không tích chọn sẽ không bị trừ khỏi số dư dự kiến."
-)
-
-living_expense_defaults = (
-    [3_000_000.0, 1_500_000.0, 1_000_000.0]
-    if is_vnd
-    else [300.0, 150.0, 80.0]
-)
-living_expense_labels = ["🍜 Tiền ăn / đi chợ", "🛍️ Mua sắm", "🚌 Đi lại"]
-living_expenses = []
-for index, (expense_label, default_amount) in enumerate(
-    zip(living_expense_labels, living_expense_defaults)
-):
-    expense_col, include_col = st.columns([3, 1])
-    with expense_col:
-        expense_amount = amount_input(
-            f"{expense_label} ({unit_label})",
-            default_amount,
-            f"living_expense_{currency}_{index}",
-            is_vnd,
-        )
-    with include_col:
-        st.write("")
-        include_expense = st.checkbox(
-            "Tính khoản này",
-            value=False,
-            key=f"include_living_expense_{currency}_{index}",
-        )
-    living_expenses.append(
-        {"name": expense_label, "amount": expense_amount, "include": include_expense}
-    )
-
+st.markdown("#### Kết quả nếu chi các khoản đã chọn")
 if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_container_width=True):
     selected_living_expenses = [item for item in living_expenses if item["include"]]
-    living_expense_total = sum(item["amount"] for item in selected_living_expenses)
-    remaining_after_living = projected_after_payday - living_expense_total
+    living_expense_total = selected_living_total
+    remaining_after_living = remaining_after_selected_living
 
     st.markdown("#### Kết quả kịch bản chi tiêu")
     result_col1, result_col2 = st.columns(2)
