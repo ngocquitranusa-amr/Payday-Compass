@@ -1,6 +1,10 @@
 import csv
 import io
+import json
+import os
 from datetime import date, timedelta
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 import streamlit as st
 
@@ -349,6 +353,109 @@ if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_conta
         st.info("Bạn chưa chọn khoản sinh hoạt nào nên số dư dự kiến không thay đổi.")
     if remaining_after_living < 0:
         st.error("Các khoản đã chọn vượt quá số dư dự kiến. Hãy thử bỏ chọn hoặc giảm một khoản.")
+
+st.subheader("6. 💬 Hỏi trợ lý chi tiêu")
+st.caption(
+    "Bạn có thể hỏi về một món đồ đang định mua, cách chia ngân sách hoặc nên mua ngay hay để dành lần sau. "
+    "Trợ lý sẽ tham khảo số liệu bạn vừa nhập để gợi ý."
+)
+
+
+def get_openrouter_api_key():
+    try:
+        key = st.secrets.get("OPENROUTER_API_KEY", "")
+        if key:
+            return key
+    except Exception:
+        pass
+    return os.environ.get("OPENROUTER_API_KEY", "")
+
+
+if "spending_chat_history" not in st.session_state:
+    st.session_state.spending_chat_history = []
+
+for message in st.session_state.spending_chat_history:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+user_question = st.chat_input("Ví dụ: Mình có nên mua đôi giày này tháng này không?")
+if user_question:
+    st.session_state.spending_chat_history.append(
+        {"role": "user", "content": user_question}
+    )
+    with st.chat_message("user"):
+        st.markdown(user_question)
+
+    api_key = get_openrouter_api_key()
+    if not api_key:
+        answer = (
+            "Chưa cấu hình API key nên trợ lý chưa thể trả lời. "
+            "Hãy thêm `OPENROUTER_API_KEY` trong mục Secrets của Streamlit Cloud "
+            "hoặc trong file `.streamlit/secrets.toml` khi chạy trên máy."
+        )
+        with st.chat_message("assistant"):
+            st.info(answer)
+    else:
+        system_prompt = (
+            "Bạn là trợ lý hướng dẫn lập ngân sách cá nhân, trả lời bằng tiếng Việt đơn giản, thân thiện. "
+            "Giúp người dùng cân nhắc mua sắm dựa trên nhu cầu, khoản thiết yếu, số dư và ngân sách họ cung cấp. "
+            "Khi phù hợp, hỏi giá món đồ và thời điểm cần dùng; có thể gợi ý quy tắc chờ 24 giờ, so sánh giá, "
+            "hoặc đặt mục tiêu tiết kiệm. Không gây áp lực mua hàng, không bịa dữ liệu và không yêu cầu thông tin "
+            "đăng nhập ngân hàng, mật khẩu hay mã OTP. Nêu rõ đây là gợi ý tham khảo, không phải tư vấn tài chính chuyên nghiệp.\n\n"
+            f"Thông tin kế hoạch hiện tại: đơn vị {currency}; số dư hiện có {money(current_balance)}; "
+            f"thu nhập khác trước kỳ lương {money(other_income)}; lương dự kiến {money(paycheck_amount)}; "
+            f"hóa đơn chưa trả {money(total_all_unpaid)}; tiền tiết kiệm dự kiến {money(savings_reserve)}; "
+            f"khoản dự phòng {money(emergency_buffer)}; còn lại sau lương và các hóa đơn là "
+            f"{money(projected_after_payday)}; còn lại nếu chi các khoản sinh hoạt đã chọn là "
+            f"{money(remaining_after_selected_living)}. Đây chỉ là dữ liệu người dùng tự nhập, chưa xác minh với ngân hàng."
+        )
+        request_messages = [
+            {"role": "system", "content": system_prompt},
+            *st.session_state.spending_chat_history[-12:],
+        ]
+        request_body = json.dumps(
+            {
+                "model": "openai/gpt-4o-mini",
+                "messages": request_messages,
+                "temperature": 0.4,
+                "max_tokens": 500,
+            }
+        ).encode("utf-8")
+        request = Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=request_body,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with st.chat_message("assistant"):
+            with st.spinner("Đang xem câu hỏi và ngân sách của bạn..."):
+                try:
+                    with urlopen(request, timeout=45) as response:
+                        result = json.loads(response.read().decode("utf-8"))
+                    answer = result["choices"][0]["message"]["content"].strip()
+                    if not answer:
+                        answer = "Mình chưa nhận được câu trả lời. Bạn thử hỏi lại nhé."
+                    st.markdown(answer)
+                except HTTPError as error:
+                    if error.code in (401, 403):
+                        answer = "API key không hợp lệ hoặc chưa được cấp quyền. Hãy kiểm tra lại Secrets trên Streamlit."
+                    elif error.code == 429:
+                        answer = "Dịch vụ đang giới hạn yêu cầu hoặc tài khoản API đã hết hạn mức. Bạn thử lại sau nhé."
+                    else:
+                        answer = f"Dịch vụ chat đang báo lỗi (mã {error.code}). Bạn thử lại sau nhé."
+                    st.error(answer)
+                except (URLError, TimeoutError):
+                    answer = "Không kết nối được dịch vụ chat. Hãy kiểm tra mạng rồi thử lại."
+                    st.error(answer)
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+                    answer = "Dịch vụ chat trả về dữ liệu chưa đúng định dạng. Bạn thử lại sau nhé."
+                    st.error(answer)
+        st.session_state.spending_chat_history.append(
+            {"role": "assistant", "content": answer}
+        )
 
 # Tải lịch kế hoạch để lưu hoặc chia sẻ.
 csv_buffer = io.StringIO()
