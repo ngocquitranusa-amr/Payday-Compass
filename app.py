@@ -1,6 +1,8 @@
 import csv
 import io
 import json
+import calendar
+import math
 import os
 from datetime import date, timedelta
 from urllib.error import HTTPError, URLError
@@ -354,113 +356,56 @@ if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_conta
     if remaining_after_living < 0:
         st.error("Các khoản đã chọn vượt quá số dư dự kiến. Hãy thử bỏ chọn hoặc giảm một khoản.")
 
-st.subheader("6. 🧾 Ghi khoản vừa chi")
+st.subheader("6. 🎯 Để dành mua món bạn muốn")
 st.caption(
-    "Vừa mua món gì thì ghi lại ở đây. App sẽ cộng chi tiêu trong tháng và so với ngân sách sinh hoạt bạn đã nhập ở mục 2."
+    "Nhập sản phẩm, giá, số tiền bạn đã dành dụm và số tiền bạn có thể tiết kiệm mỗi tháng. "
+    "App sẽ ước tính thời gian cần để mua được món đó."
 )
-
-if "actual_expenses" not in st.session_state:
-    st.session_state.actual_expenses = []
-
-expense_name_col, expense_category_col = st.columns([2, 1])
-expense_name_key = f"actual_expense_name_{len(st.session_state.actual_expenses)}"
-with expense_name_col:
-    actual_expense_name = st.text_input(
-        "Bạn vừa mua gì?", placeholder="Ví dụ: Ăn trưa, sữa, áo thun", key=expense_name_key
+goal_name_col, goal_price_col = st.columns([2, 1])
+with goal_name_col:
+    goal_product_name = st.text_input(
+        "Bạn muốn mua gì?", placeholder="Ví dụ: Điện thoại, máy tính, xe đạp", key="goal_product_name"
     )
-with expense_category_col:
-    actual_expense_category = st.selectbox(
-        "Nhóm chi", ["Ăn uống", "Mua sắm", "Đi lại", "Khác"], key="actual_expense_category"
+with goal_price_col:
+    goal_product_price = amount_input(
+        f"Giá sản phẩm ({unit_label})", 20_000_000.0 if is_vnd else 600.0,
+        f"goal_product_price_{currency}", is_vnd,
     )
 
-expense_amount_col, expense_date_col = st.columns(2)
-with expense_amount_col:
-    actual_expense_amount = amount_input(
-        f"Số tiền đã chi ({unit_label})", 0.0, f"actual_expense_amount_{currency}", is_vnd
+goal_saved_col, goal_monthly_col = st.columns(2)
+with goal_saved_col:
+    goal_saved_amount = amount_input(
+        f"Đã tiết kiệm cho món này ({unit_label})", 0.0,
+        f"goal_saved_amount_{currency}", is_vnd,
     )
-with expense_date_col:
-    actual_expense_date = st.date_input(
-        "Ngày mua", value=date.today(), key="actual_expense_date"
+with goal_monthly_col:
+    goal_monthly_saving = amount_input(
+        f"Có thể để dành mỗi tháng ({unit_label})", 3_000_000.0 if is_vnd else 150.0,
+        f"goal_monthly_saving_{currency}", is_vnd,
     )
 
-if st.button("➕ Lưu khoản chi", key="save_actual_expense"):
-    if not actual_expense_name.strip():
-        st.warning("Bạn nhập tên món hoặc khoản vừa mua trước nhé.")
-    elif actual_expense_amount <= 0:
-        st.warning("Bạn nhập số tiền lớn hơn 0 nhé.")
-    else:
-        st.session_state.actual_expenses.append(
-            {
-                "name": actual_expense_name.strip(),
-                "category": actual_expense_category,
-                "amount": actual_expense_amount,
-                "currency": currency,
-                "date": actual_expense_date,
-            }
-        )
-        st.success("Đã lưu khoản chi.")
-
-month_expenses = [
-    item for item in st.session_state.actual_expenses
-    if item["currency"] == currency
-    and item["date"].year == date.today().year
-    and item["date"].month == date.today().month
-]
-actual_month_total = sum(item["amount"] for item in month_expenses)
-expense_budget_by_category = {
-    "Ăn uống": living_expenses[0]["amount"],
-    "Mua sắm": living_expenses[1]["amount"],
-    "Đi lại": living_expenses[2]["amount"],
-}
-summary_col1, summary_col2 = st.columns(2)
-summary_col1.metric("Tổng đã chi trong tháng", money(actual_month_total))
-actual_in_budget_categories = sum(
-    item["amount"]
-    for item in month_expenses
-    if item["category"] in expense_budget_by_category
-)
-summary_col2.metric(
-    "Ngân sách 3 nhóm còn lại",
-    money(sum(expense_budget_by_category.values()) - actual_in_budget_categories),
-)
-
-if month_expenses:
-    st.markdown("#### Chi tiết theo nhóm")
-    for category in ["Ăn uống", "Mua sắm", "Đi lại", "Khác"]:
-        actual_for_category = sum(
-            item["amount"] for item in month_expenses if item["category"] == category
-        )
-        if category == "Khác":
-            st.write(f"- **{category}:** đã chi {money(actual_for_category)}")
-        else:
-            category_left = expense_budget_by_category[category] - actual_for_category
-            st.write(
-                f"- **{category}:** đã chi {money(actual_for_category)} / "
-                f"ngân sách {money(expense_budget_by_category[category])}; "
-                f"còn {money(category_left)}"
-            )
-    st.markdown("#### Các khoản đã ghi trong tháng này")
-    for item in sorted(month_expenses, key=lambda entry: entry["date"], reverse=True):
-        st.write(
-            f"- {item['date']:%d/%m/%Y} · {item['name']} ({item['category']}) — {money(item['amount'])}"
-        )
+goal_remaining = max(0.0, goal_product_price - goal_saved_amount)
+if goal_product_price <= 0:
+    st.info("Nhập giá sản phẩm lớn hơn 0 để xem thời gian dự kiến.")
+elif goal_remaining == 0:
+    st.success(f"Bạn đã dành đủ tiền cho {goal_product_name or 'món đồ này'}.")
+elif goal_monthly_saving <= 0:
+    st.warning("Nhập số tiền có thể để dành mỗi tháng lớn hơn 0 để app tính thời gian.")
 else:
-    st.caption("Bạn chưa ghi khoản chi nào trong tháng này.")
-
-expense_csv_buffer = io.StringIO()
-expense_writer = csv.writer(expense_csv_buffer)
-expense_writer.writerow(["Ngày", "Món / khoản chi", "Nhóm", "Số tiền", "Đơn vị"])
-for item in st.session_state.actual_expenses:
-    expense_writer.writerow(
-        [item["date"].isoformat(), item["name"], item["category"], item["amount"], item["currency"]]
+    months_to_goal = math.ceil(goal_remaining / goal_monthly_saving)
+    current_date = date.today()
+    target_month_index = current_date.month - 1 + months_to_goal
+    target_year = current_date.year + target_month_index // 12
+    target_month = target_month_index % 12 + 1
+    target_day = min(current_date.day, calendar.monthrange(target_year, target_month)[1])
+    estimated_purchase_date = date(target_year, target_month, target_day)
+    goal_progress = min(1.0, goal_saved_amount / goal_product_price)
+    st.progress(goal_progress, text=f"Đã có {goal_progress:.0%} giá sản phẩm")
+    st.success(
+        f"Còn thiếu {money(goal_remaining)}. Nếu đều đặn để dành {money(goal_monthly_saving)} mỗi tháng, "
+        f"bạn cần khoảng **{months_to_goal} tháng** và có thể mua {goal_product_name or 'món đồ này'} "
+        f"khoảng ngày {estimated_purchase_date:%d/%m/%Y}."
     )
-st.download_button(
-    "⬇️ Tải lịch sử chi tiêu CSV",
-    data=("\ufeff" + expense_csv_buffer.getvalue()).encode("utf-8"),
-    file_name=f"chi_tieu_thuc_te_{date.today():%Y%m}.csv",
-    mime="text/csv",
-    use_container_width=True,
-)
 
 st.subheader("7. 💬 Hỏi trợ lý chi tiêu")
 st.caption(
@@ -515,8 +460,8 @@ if user_question:
             f"hóa đơn chưa trả {money(total_all_unpaid)}; tiền tiết kiệm dự kiến {money(savings_reserve)}; "
             f"khoản dự phòng {money(emergency_buffer)}; còn lại sau lương và các hóa đơn là "
             f"{money(projected_after_payday)}; còn lại nếu chi các khoản sinh hoạt đã chọn là "
-            f"{money(remaining_after_selected_living)}; đã ghi chi tiêu tháng này {money(actual_month_total)}. "
-            "Đây chỉ là dữ liệu người dùng tự nhập, chưa xác minh với ngân hàng."
+            f"{money(remaining_after_selected_living)}. Đây chỉ là dữ liệu người dùng tự nhập, "
+            "chưa xác minh với ngân hàng."
         )
         request_messages = [
             {"role": "system", "content": system_prompt},
