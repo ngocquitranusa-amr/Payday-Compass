@@ -23,7 +23,8 @@ st.markdown(
     div.st-key-compact_section3 [data-testid="stMetricValue"],
     div.st-key-compact_section4 [data-testid="stMetricValue"],
     div.st-key-compact_section1_totals [data-testid="stMetricValue"],
-    div.st-key-living_budget_card [data-testid="stMetricValue"] {
+    div.st-key-living_budget_card [data-testid="stMetricValue"],
+    div.st-key-purchase_check [data-testid="stMetricValue"] {
         font-size: 1rem !important;
         line-height: 1.25 !important;
         white-space: nowrap;
@@ -31,7 +32,8 @@ st.markdown(
     div.st-key-compact_section3 [data-testid="stMetricLabel"],
     div.st-key-compact_section4 [data-testid="stMetricLabel"],
     div.st-key-compact_section1_totals [data-testid="stMetricLabel"],
-    div.st-key-living_budget_card [data-testid="stMetricLabel"] {
+    div.st-key-living_budget_card [data-testid="stMetricLabel"],
+    div.st-key-purchase_check [data-testid="stMetricLabel"] {
         font-size: 0.78rem !important;
     }
     div.st-key-compact_section1_totals [data-testid="stMetric"] {
@@ -44,6 +46,7 @@ st.markdown(
     div.st-key-compact_section3 [data-testid="stMetric"],
     div.st-key-compact_section4 [data-testid="stMetric"],
     div.st-key-living_budget_card [data-testid="stMetric"],
+    div.st-key-purchase_check [data-testid="stMetric"],
     div.st-key-living_result [data-testid="stMetric"] {
         background: #f7f9fc;
         border: 1px solid #e5eaf1;
@@ -450,6 +453,41 @@ if projected_after_payday < 0:
     st.error(f"Sau các khoản đã nhập, dự kiến còn thiếu {money(abs(projected_after_payday))}.")
 else:
     st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
+
+st.subheader("5. 🛍️ Kiểm tra trước khi mua")
+st.caption(
+    "Ước tính số dư sau khi mua món đồ, sau khi đã tính hóa đơn, tiền giữ lại và chi phí sinh hoạt bạn chọn."
+)
+with st.container(border=True, key="purchase_check"):
+    purchase_name_col, purchase_price_col = st.columns([2, 1])
+    with purchase_name_col:
+        purchase_name = st.text_input(
+            "Bạn định mua gì?",
+            placeholder="Ví dụ: tai nghe, giày, điện thoại",
+            key="purchase_check_name",
+        )
+    with purchase_price_col:
+        purchase_price = amount_input(
+            f"Giá món đồ ({unit_label})",
+            0.0,
+            f"purchase_check_price_{currency}",
+            is_vnd,
+        )
+    if purchase_price > 0:
+        after_purchase = remaining_after_selected_living - purchase_price
+        st.metric("💰 Còn lại nếu mua", money(after_purchase))
+        if after_purchase < 0:
+            st.warning(
+                f"Món {purchase_name or 'đồ này'} vượt quá ngân sách có thể chi "
+                f"{money(abs(after_purchase))}. Có thể cân nhắc đợi hoặc giảm khoản chi khác."
+            )
+        else:
+            st.success(
+                f"Dự kiến vẫn còn {money(after_purchase)} sau khi mua {purchase_name or 'món đồ này'}, "
+                "không cần lấy vào khoản hóa đơn, tiết kiệm và dự phòng đã giữ lại."
+            )
+    else:
+        st.caption("Nhập giá món đồ để xem thử tác động đến số dư.")
 
 st.subheader("6. 🎯 Để dành mua món bạn muốn")
 st.caption(
