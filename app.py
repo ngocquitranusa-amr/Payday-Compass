@@ -32,6 +32,22 @@ st.markdown(
     div.st-key-compact_section1_totals [data-testid="stMetricLabel"] {
         font-size: 0.78rem !important;
     }
+    div.st-key-compact_section1_totals [data-testid="stMetric"] {
+        background: #f7f9fc;
+        border: 1px solid #e5eaf1;
+        border-radius: 12px;
+        padding: 12px 14px;
+        min-height: 92px;
+    }
+    div.st-key-compact_section3 [data-testid="stMetric"],
+    div.st-key-compact_section4 [data-testid="stMetric"],
+    div.st-key-living_result [data-testid="stMetric"] {
+        background: #f7f9fc;
+        border: 1px solid #e5eaf1;
+        border-radius: 12px;
+        padding: 12px 14px;
+        min-height: 92px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -356,14 +372,14 @@ selected_living_total = sum(
 remaining_after_selected_living = projected_after_payday - selected_living_total
 with section1_total.container():
     with st.container(key="compact_section1_totals"):
-        st.markdown("#### Tổng tiền còn lại sau khi tính các khoản đã nhập")
+        st.markdown("#### 💰 Tổng tiền còn lại sau khi tính các khoản đã nhập")
         total_col1, total_col2 = st.columns(2)
         total_col1.metric(
-            "Sau lương, hóa đơn, tiết kiệm và dự phòng",
+            "🧾 Sau lương, hóa đơn, tiết kiệm và dự phòng",
             money(projected_after_payday),
         )
         total_col2.metric(
-            "Nếu chi các khoản sinh hoạt đã chọn",
+            "🛍️ Nếu chi các khoản sinh hoạt đã chọn",
             money(remaining_after_selected_living),
         )
         st.caption(
@@ -403,10 +419,11 @@ if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_conta
     living_expense_total = selected_living_total
     remaining_after_living = remaining_after_selected_living
 
-    st.markdown("#### Kết quả kịch bản chi tiêu")
-    result_col1, result_col2 = st.columns(2)
-    result_col1.metric("Tổng khoản sinh hoạt đã chọn", money(living_expense_total))
-    result_col2.metric("Còn lại sau các khoản đã chọn", money(remaining_after_living))
+    with st.container(border=True, key="living_result"):
+        st.markdown("#### 🧮 Kết quả kịch bản chi tiêu")
+        result_col1, result_col2 = st.columns(2)
+        result_col1.metric("🛍️ Tổng khoản sinh hoạt đã chọn", money(living_expense_total))
+        result_col2.metric("💰 Còn lại sau các khoản đã chọn", money(remaining_after_living))
     if selected_living_expenses:
         st.write("**Đã tính:** " + ", ".join(item["name"] for item in selected_living_expenses))
     else:
