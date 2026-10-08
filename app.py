@@ -413,24 +413,6 @@ if projected_after_payday < 0:
 else:
     st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
 
-st.markdown("#### Kết quả nếu chi các khoản đã chọn")
-if st.button("🧮 Tính số dư nếu chi các khoản đã chọn", use_container_width=True):
-    selected_living_expenses = [item for item in living_expenses if item["include"]]
-    living_expense_total = selected_living_total
-    remaining_after_living = remaining_after_selected_living
-
-    with st.container(border=True, key="living_result"):
-        st.markdown("#### 🧮 Kết quả kịch bản chi tiêu")
-        result_col1, result_col2 = st.columns(2)
-        result_col1.metric("🛍️ Tổng khoản sinh hoạt đã chọn", money(living_expense_total))
-        result_col2.metric("💰 Còn lại sau các khoản đã chọn", money(remaining_after_living))
-    if selected_living_expenses:
-        st.write("**Đã tính:** " + ", ".join(item["name"] for item in selected_living_expenses))
-    else:
-        st.info("Bạn chưa chọn khoản sinh hoạt nào nên số dư dự kiến không thay đổi.")
-    if remaining_after_living < 0:
-        st.error("Các khoản đã chọn vượt quá số dư dự kiến. Hãy thử bỏ chọn hoặc giảm một khoản.")
-
 st.subheader("6. 🎯 Để dành mua món bạn muốn")
 st.caption(
     "Nhập sản phẩm, giá, số tiền bạn đã dành dụm và số tiền bạn có thể tiết kiệm mỗi tháng. "
