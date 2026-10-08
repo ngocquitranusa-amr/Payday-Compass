@@ -233,25 +233,44 @@ unpaid_bills = [bill for bill in bills if not bill["paid"]]
 total_due = sum(bill["amount"] for bill in bills_due_before_payday)
 total_all_unpaid = sum(bill["amount"] for bill in unpaid_bills)
 
-st.markdown("#### Chi phí sinh hoạt muốn tính thử")
+st.markdown("#### Chi phí sinh hoạt")
 st.caption(
-    "Nhập khoản dự kiến cho tháng này, rồi tích chọn những khoản bạn muốn tính thử. "
-    "Khoản không tích chọn sẽ không bị trừ khỏi số dư dự kiến."
+    "Nhập các khoản sinh hoạt dự kiến. Chỉ những khoản được tích chọn mới bị trừ trong kịch bản chi tiêu."
+)
+living_expense_count = st.number_input(
+    "Số khoản chi sinh hoạt", min_value=1, max_value=12, value=1, step=1
 )
 living_expense_defaults = (
     [3_000_000.0, 1_500_000.0, 1_000_000.0]
     if is_vnd
     else [300.0, 150.0, 80.0]
 )
-living_expense_labels = ["🍜 Tiền ăn / đi chợ", "🛍️ Mua sắm", "🚌 Đi lại"]
+living_expense_labels = ["Tiền ăn / đi chợ", "Mua sắm", "Đi lại"]
 living_expenses = []
-for index, (expense_label, default_amount) in enumerate(
-    zip(living_expense_labels, living_expense_defaults)
-):
-    expense_col, include_col = st.columns([3, 1])
+for index in range(int(living_expense_count)):
+    expense_label = (
+        living_expense_labels[index]
+        if index < len(living_expense_labels)
+        else f"Khoản sinh hoạt {index + 1}"
+    )
+    default_amount = (
+        living_expense_defaults[index]
+        if index < len(living_expense_defaults)
+        else 0.0
+    )
+    st.markdown(f"**Khoản sinh hoạt {index + 1}**")
+    expense_name_col, expense_col, include_col = st.columns([2, 1.5, 1])
+    with expense_name_col:
+        expense_name = st.text_input(
+            "Tên khoản chi",
+            value=expense_label,
+            key=f"living_expense_name_{index}",
+            label_visibility="collapsed",
+            placeholder="Tên khoản chi",
+        )
     with expense_col:
         expense_amount = amount_input(
-            f"{expense_label} ({unit_label})",
+            f"Số tiền ({unit_label})",
             default_amount,
             f"living_expense_{currency}_{index}",
             is_vnd,
@@ -264,7 +283,11 @@ for index, (expense_label, default_amount) in enumerate(
             key=f"include_living_expense_{currency}_{index}",
         )
     living_expenses.append(
-        {"name": expense_label, "amount": expense_amount, "include": include_expense}
+        {
+            "name": expense_name.strip() or f"Khoản sinh hoạt {index + 1}",
+            "amount": expense_amount,
+            "include": include_expense,
+        }
     )
 
 st.subheader("3. 🧮 Ngân sách đến kỳ lương")
