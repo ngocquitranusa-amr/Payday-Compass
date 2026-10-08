@@ -21,13 +21,16 @@ st.markdown(
     """
     <style>
     div.st-key-compact_section3 [data-testid="stMetricValue"],
-    div.st-key-compact_section4 [data-testid="stMetricValue"] {
-        font-size: 1.25rem !important;
+    div.st-key-compact_section4 [data-testid="stMetricValue"],
+    div.st-key-compact_section1_totals [data-testid="stMetricValue"] {
+        font-size: 1rem !important;
         line-height: 1.25 !important;
+        white-space: nowrap;
     }
     div.st-key-compact_section3 [data-testid="stMetricLabel"],
-    div.st-key-compact_section4 [data-testid="stMetricLabel"] {
-        font-size: 0.85rem !important;
+    div.st-key-compact_section4 [data-testid="stMetricLabel"],
+    div.st-key-compact_section1_totals [data-testid="stMetricLabel"] {
+        font-size: 0.78rem !important;
     }
     </style>
     """,
@@ -352,19 +355,20 @@ selected_living_total = sum(
 )
 remaining_after_selected_living = projected_after_payday - selected_living_total
 with section1_total.container():
-    st.markdown("#### Tổng tiền còn lại sau khi tính các khoản đã nhập")
-    total_col1, total_col2 = st.columns(2)
-    total_col1.metric(
-        "Sau lương, hóa đơn, tiết kiệm và dự phòng",
-        money(projected_after_payday),
-    )
-    total_col2.metric(
-        "Nếu chi các khoản sinh hoạt đã chọn",
-        money(remaining_after_selected_living),
-    )
-    st.caption(
-        "Tổng này tự cập nhật khi bạn thay đổi số liệu. Chi phí sinh hoạt chỉ bị trừ khi bạn tích chọn ở mục 2."
-    )
+    with st.container(key="compact_section1_totals"):
+        st.markdown("#### Tổng tiền còn lại sau khi tính các khoản đã nhập")
+        total_col1, total_col2 = st.columns(2)
+        total_col1.metric(
+            "Sau lương, hóa đơn, tiết kiệm và dự phòng",
+            money(projected_after_payday),
+        )
+        total_col2.metric(
+            "Nếu chi các khoản sinh hoạt đã chọn",
+            money(remaining_after_selected_living),
+        )
+        st.caption(
+            "Tổng này tự cập nhật khi bạn thay đổi số liệu. Chi phí sinh hoạt chỉ bị trừ khi bạn tích chọn ở mục 2."
+        )
 
 st.subheader("4. 💰 Dự kiến còn lại sau khi nhận lương")
 st.caption(
