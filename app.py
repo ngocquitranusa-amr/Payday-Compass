@@ -22,14 +22,16 @@ st.markdown(
     <style>
     div.st-key-compact_section3 [data-testid="stMetricValue"],
     div.st-key-compact_section4 [data-testid="stMetricValue"],
-    div.st-key-compact_section1_totals [data-testid="stMetricValue"] {
+    div.st-key-compact_section1_totals [data-testid="stMetricValue"],
+    div.st-key-living_budget_card [data-testid="stMetricValue"] {
         font-size: 1rem !important;
         line-height: 1.25 !important;
         white-space: nowrap;
     }
     div.st-key-compact_section3 [data-testid="stMetricLabel"],
     div.st-key-compact_section4 [data-testid="stMetricLabel"],
-    div.st-key-compact_section1_totals [data-testid="stMetricLabel"] {
+    div.st-key-compact_section1_totals [data-testid="stMetricLabel"],
+    div.st-key-living_budget_card [data-testid="stMetricLabel"] {
         font-size: 0.78rem !important;
     }
     div.st-key-compact_section1_totals [data-testid="stMetric"] {
@@ -41,6 +43,7 @@ st.markdown(
     }
     div.st-key-compact_section3 [data-testid="stMetric"],
     div.st-key-compact_section4 [data-testid="stMetric"],
+    div.st-key-living_budget_card [data-testid="stMetric"],
     div.st-key-living_result [data-testid="stMetric"] {
         background: #f7f9fc;
         border: 1px solid #e5eaf1;
@@ -309,6 +312,44 @@ for index in range(int(living_expense_count)):
         }
     )
 
+selected_living_total = sum(
+    item["amount"] for item in living_expenses if item["include"]
+)
+with st.container(border=True, key="living_budget_card"):
+    st.markdown("#### 🎯 Giới hạn chi sinh hoạt")
+    st.caption("Đặt mức tối đa muốn chi để theo dõi các khoản sinh hoạt đã chọn.")
+    budget_input_col, budget_used_col = st.columns(2)
+    with budget_input_col:
+        living_budget_limit = amount_input(
+            f"Mức chi tối đa ({unit_label})",
+            0.0,
+            f"living_budget_limit_{currency}",
+            is_vnd,
+        )
+    with budget_used_col:
+        st.metric("🧾 Tổng khoản đã chọn", money(selected_living_total))
+    if living_budget_limit > 0:
+        budget_ratio = selected_living_total / living_budget_limit
+        st.progress(
+            min(budget_ratio, 1.0),
+            text=f"Đã dùng {budget_ratio:.0%} · giới hạn {money(living_budget_limit)}",
+        )
+        if budget_ratio > 1:
+            st.error(
+                f"⚠️ Đã vượt giới hạn {money(selected_living_total - living_budget_limit)}. "
+                "Hãy cân nhắc giảm hoặc bỏ chọn một khoản."
+            )
+        elif budget_ratio >= 0.8:
+            st.warning(
+                f"Sắp chạm giới hạn · còn {money(living_budget_limit - selected_living_total)}."
+            )
+        else:
+            st.success(
+                f"Trong giới hạn · còn có thể chi {money(living_budget_limit - selected_living_total)}."
+            )
+    else:
+        st.caption("Nhập mức chi tối đa lớn hơn 0 để bật cảnh báo.")
+
 st.subheader("3. 🧮 Ngân sách đến kỳ lương")
 funds_before_payday = current_balance + other_income
 money_after_reserves = funds_before_payday - total_due - savings_reserve - emergency_buffer
@@ -365,9 +406,6 @@ projected_after_payday = (
     - total_all_unpaid
     - savings_reserve
     - emergency_buffer
-)
-selected_living_total = sum(
-    item["amount"] for item in living_expenses if item["include"]
 )
 remaining_after_selected_living = projected_after_payday - selected_living_total
 with section1_total.container():
