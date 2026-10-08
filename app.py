@@ -17,6 +17,23 @@ st.set_page_config(
     layout="centered",
 )
 
+st.markdown(
+    """
+    <style>
+    div.st-key-compact_section3 [data-testid="stMetricValue"],
+    div.st-key-compact_section4 [data-testid="stMetricValue"] {
+        font-size: 1.25rem !important;
+        line-height: 1.25 !important;
+    }
+    div.st-key-compact_section3 [data-testid="stMetricLabel"],
+    div.st-key-compact_section4 [data-testid="stMetricLabel"] {
+        font-size: 0.85rem !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 currency = st.selectbox("Đơn vị tiền tệ", ["VND", "USD"], key="currency_choice")
 is_vnd = currency == "VND"
@@ -161,7 +178,7 @@ days_until_payday = (payday - now).days
 st.subheader("2. Hóa đơn và chi tiêu dự kiến")
 st.markdown("#### Hóa đơn chưa thanh toán")
 bill_count = st.number_input(
-    "Số hóa đơn muốn thêm", min_value=1, max_value=12, value=3, step=1
+    "Số hóa đơn muốn thêm", min_value=1, max_value=12, value=1, step=1
 )
 st.caption("Chỉ hóa đơn chưa đánh dấu đã trả và đến hạn trước hoặc vào ngày nhận lương mới được trừ khỏi ngân sách kỳ này.")
 
@@ -258,7 +275,7 @@ safe_to_spend = max(0.0, money_after_reserves)
 days_for_daily_budget = max(1, days_until_payday)
 daily_limit = safe_to_spend / days_for_daily_budget
 
-with st.container(border=True):
+with st.container(border=True, key="compact_section3"):
     metric1, metric2, metric3 = st.columns(3)
     metric1.metric("🧾 Hóa đơn đến hạn", money(total_due))
     metric2.metric(
@@ -332,7 +349,7 @@ st.caption(
 )
 projected_income = current_balance + other_income + paycheck_amount
 projected_deductions = total_all_unpaid + savings_reserve + emergency_buffer
-with st.container(border=True):
+with st.container(border=True, key="compact_section4"):
     projection_cols = st.columns(3)
     projection_cols[0].metric("💵 Tổng tiền + thu nhập", money(projected_income))
     projection_cols[1].metric("🧾 Tổng khoản cần trừ", money(projected_deductions))
