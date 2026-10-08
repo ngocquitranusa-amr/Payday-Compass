@@ -250,7 +250,7 @@ for index, (expense_label, default_amount) in enumerate(
         {"name": expense_label, "amount": expense_amount, "include": include_expense}
     )
 
-st.subheader("3. Ngân sách từ hôm nay đến ngày nhận lương")
+st.subheader("3. 🧮 Ngân sách đến kỳ lương")
 funds_before_payday = current_balance + other_income
 money_after_reserves = funds_before_payday - total_due - savings_reserve - emergency_buffer
 shortfall = max(0.0, -money_after_reserves)
@@ -258,10 +258,17 @@ safe_to_spend = max(0.0, money_after_reserves)
 days_for_daily_budget = max(1, days_until_payday)
 daily_limit = safe_to_spend / days_for_daily_budget
 
-metric1, metric2, metric3 = st.columns(3)
-metric1.metric("Hóa đơn cần trả trước kỳ lương", money(total_due))
-metric2.metric("Còn có thể phân bổ", money(safe_to_spend))
-metric3.metric("Mức chi trung bình mỗi ngày", money(daily_limit))
+with st.container(border=True):
+    metric1, metric2, metric3 = st.columns(3)
+    metric1.metric("🧾 Hóa đơn đến hạn", money(total_due))
+    metric2.metric(
+        "🔒 Tiền tiết kiệm + dự phòng",
+        money(savings_reserve + emergency_buffer),
+    )
+    metric3.metric("✅ Còn có thể chi", money(safe_to_spend))
+    st.caption(
+        f"📆 Bình quân khoảng **{money(daily_limit)} mỗi ngày** trong {days_for_daily_budget} ngày đến kỳ lương."
+    )
 
 if shortfall > 0:
     st.error(
@@ -319,21 +326,28 @@ with section1_total.container():
         "Tổng này tự cập nhật khi bạn thay đổi số liệu. Chi phí sinh hoạt chỉ bị trừ khi bạn tích chọn ở mục 2."
     )
 
-st.subheader("4. Còn bao nhiêu sau khi nhận lương và trả hết chi phí đã nhập?")
+st.subheader("4. 💰 Dự kiến còn lại sau khi nhận lương")
 st.caption(
-    "Ước tính này trừ toàn bộ hóa đơn chưa đánh dấu đã trả, kể cả khoản đến hạn sau ngày lương, "
-    "rồi trừ tiền tiết kiệm và khoản dự phòng đã đặt."
+    "Tính cả hóa đơn chưa trả (kể cả hóa đơn đến hạn sau ngày lương), tiền tiết kiệm và khoản dự phòng."
 )
-projection_cols = st.columns(4)
-projection_cols[0].metric("Số dư hiện tại", money(current_balance))
-projection_cols[1].metric("Thu nhập trước ngày lương", money(other_income))
-projection_cols[2].metric("Lương sắp nhận", money(paycheck_amount))
-projection_cols[3].metric("Tổng hóa đơn chưa trả", money(total_all_unpaid))
-st.write(
-    f"**Phép tính:** {money(current_balance)} + {money(other_income)} + "
-    f"{money(paycheck_amount)} − {money(total_all_unpaid)} − "
-    f"{money(savings_reserve)} tiết kiệm − {money(emergency_buffer)} dự phòng"
-)
+projected_income = current_balance + other_income + paycheck_amount
+projected_deductions = total_all_unpaid + savings_reserve + emergency_buffer
+with st.container(border=True):
+    projection_cols = st.columns(3)
+    projection_cols[0].metric("💵 Tổng tiền + thu nhập", money(projected_income))
+    projection_cols[1].metric("🧾 Tổng khoản cần trừ", money(projected_deductions))
+    projection_cols[2].metric("🏦 Số dư dự kiến", money(projected_after_payday))
+    with st.expander("Xem chi tiết phép tính"):
+        st.write(f"**Tiền hiện có:** {money(current_balance)}")
+        st.write(f"**Thu nhập khác trước kỳ lương:** + {money(other_income)}")
+        st.write(f"**Lương sắp nhận:** + {money(paycheck_amount)}")
+        st.write(f"**Hóa đơn chưa trả:** − {money(total_all_unpaid)}")
+        st.write(f"**Tiết kiệm:** − {money(savings_reserve)}")
+        st.write(f"**Khoản dự phòng:** − {money(emergency_buffer)}")
+        st.markdown(
+            f"**Phép tính:** {money(projected_income)} − {money(projected_deductions)} "
+            f"= **{money(projected_after_payday)}**"
+        )
 if projected_after_payday < 0:
     st.error(f"Sau các khoản đã nhập, dự kiến còn thiếu {money(abs(projected_after_payday))}.")
 else:
