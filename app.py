@@ -2,12 +2,9 @@ import csv
 import io
 import json
 import calendar
-import hashlib
 import math
 import os
-import sqlite3
 from datetime import date, timedelta
-from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -119,83 +116,6 @@ def amount_input(label, initial_value, key, use_vnd, help_text=None):
     except ValueError:
         st.warning(f"{label}: vui lòng nhập số tiền hợp lệ.")
         return 0.0
-
-
-DB_PATH = Path(__file__).resolve().with_name("payday_compass.db")
-
-
-def get_db_connection():
-    """Open the local SQLite file and create its history table if needed."""
-    connection = sqlite3.connect(DB_PATH, timeout=10)
-    connection.row_factory = sqlite3.Row
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS monthly_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner_hash TEXT NOT NULL,
-            month_key TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            current_balance REAL NOT NULL DEFAULT 0,
-            payday TEXT NOT NULL,
-            projected_remaining REAL NOT NULL DEFAULT 0,
-            after_living REAL NOT NULL DEFAULT 0,
-            snapshot_json TEXT NOT NULL,
-            saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    connection.execute(
-        "CREATE INDEX IF NOT EXISTS idx_history_owner_saved "
-        "ON monthly_history (owner_hash, saved_at)"
-    )
-    connection.commit()
-    return connection
-
-
-def save_monthly_history(owner_hash, month_key, currency_code, snapshot):
-    connection = get_db_connection()
-    try:
-        cursor = connection.execute(
-            """
-            INSERT INTO monthly_history
-                (owner_hash, month_key, currency, current_balance, payday,
-                 projected_remaining, after_living, snapshot_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                owner_hash,
-                month_key,
-                currency_code,
-                snapshot["current_balance"],
-                snapshot["payday"],
-                snapshot["projected_remaining"],
-                snapshot["after_living"],
-                json.dumps(snapshot, ensure_ascii=False),
-            ),
-        )
-        connection.commit()
-        return cursor.lastrowid
-    finally:
-        connection.close()
-
-
-def load_monthly_history(owner_hash):
-    connection = get_db_connection()
-    try:
-        cursor = connection.execute(
-            """
-            SELECT month_key, currency, current_balance, payday,
-                   projected_remaining, after_living, saved_at
-            FROM monthly_history
-            WHERE owner_hash = ?
-            ORDER BY saved_at DESC
-            LIMIT 24
-            """,
-            (owner_hash,),
-        )
-        return cursor.fetchall()
-    finally:
-        connection.close()
 
 
 payment_options = (
@@ -534,97 +454,7 @@ if projected_after_payday < 0:
 else:
     st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
 
-st.subheader("5. 🗂️ Lịch sử kế hoạch theo tháng")
-st.caption(
-    "Lưu ảnh chụp kế hoạch hiện tại vào SQLite và xem lại các lần đã lưu. "
-    "Mỗi lần bấm lưu sẽ tạo một bản ghi mới."
-)
-history_access_code = st.text_input(
-    "Mã riêng tư của bạn",
-    type="password",
-    help="Tạo một mã khó đoán và dùng lại mã đó để xem lịch sử. Không chia sẻ mã này.",
-    key="history_access_code",
-)
-if history_access_code:
-    history_owner_hash = hashlib.sha256(history_access_code.encode("utf-8")).hexdigest()
-    save_history_col, _ = st.columns([1, 2])
-    with save_history_col:
-        save_history_clicked = st.button(
-            "💾 Lưu kế hoạch tháng này", use_container_width=True
-        )
-    if save_history_clicked:
-        history_snapshot = {
-            "currency": currency,
-            "current_balance": current_balance,
-            "payday": payday.isoformat(),
-            "paycheck_amount": paycheck_amount,
-            "other_income": other_income,
-            "savings_reserve": savings_reserve,
-            "emergency_buffer": emergency_buffer,
-            "living_budget_limit": living_budget_limit,
-            "bills": [
-                {
-                    "name": bill["name"],
-                    "amount": bill["amount"],
-                    "due_date": bill["due_date"].isoformat(),
-                    "paid": bill["paid"],
-                }
-                for bill in bills
-            ],
-            "living_expenses": living_expenses,
-            "selected_living_total": selected_living_total,
-            "projected_remaining": projected_after_payday,
-            "after_living": remaining_after_selected_living,
-        }
-        try:
-            save_monthly_history(
-                history_owner_hash,
-                date.today().strftime("%Y-%m"),
-                currency,
-                history_snapshot,
-            )
-            st.success("Đã lưu kế hoạch vào lịch sử SQLite.")
-        except Exception as exc:
-            st.error(f"Chưa lưu được lịch sử: {exc}")
-    try:
-        saved_history = load_monthly_history(history_owner_hash)
-        if saved_history:
-            st.markdown("**Các lần lưu gần đây**")
-            st.dataframe(
-                [
-                    {
-                        "Tháng": row["month_key"],
-                        "Ngày nhận lương": row["payday"].strftime("%d/%m/%Y"),
-                        "Đơn vị": row["currency"],
-                        "Số dư dự kiến": money(row["projected_remaining"])
-                        if row["currency"] == currency
-                        else (
-                            f"{row['projected_remaining']:,.0f} VND"
-                            if row["currency"] == "VND"
-                            else f"${row['projected_remaining']:,.2f}"
-                        ),
-                        "Còn lại sau sinh hoạt": money(row["after_living"])
-                        if row["currency"] == currency
-                        else (
-                            f"{row['after_living']:,.0f} VND"
-                            if row["currency"] == "VND"
-                            else f"${row['after_living']:,.2f}"
-                        ),
-                        "Đã lưu lúc": str(row["saved_at"]),
-                    }
-                    for row in saved_history
-                ],
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.caption("Chưa có lịch sử cho mã này. Nhấn nút lưu để tạo bản ghi đầu tiên.")
-    except Exception as exc:
-        st.error(f"Không đọc được lịch sử SQLite: {exc}")
-else:
-    st.info("Nhập mã riêng tư để lưu kế hoạch và xem lịch sử của bạn.")
-
-st.subheader("6. 🛍️ Kiểm tra trước khi mua")
+st.subheader("5. 🛍️ Kiểm tra trước khi mua")
 st.caption(
     "Ước tính số dư sau khi mua món đồ, sau khi đã tính hóa đơn, tiền giữ lại và chi phí sinh hoạt bạn chọn."
 )
@@ -659,7 +489,7 @@ with st.container(border=True, key="purchase_check"):
     else:
         st.caption("Nhập giá món đồ để xem thử tác động đến số dư.")
 
-st.subheader("7. 🎯 Để dành mua món bạn muốn")
+st.subheader("6. 🎯 Để dành mua món bạn muốn")
 st.caption(
     "Nhập sản phẩm, giá, số tiền bạn đã dành dụm và số tiền bạn có thể tiết kiệm mỗi tháng. "
     "App sẽ ước tính thời gian cần để mua được món đó."
@@ -710,7 +540,7 @@ else:
         f"khoảng ngày {estimated_purchase_date:%d/%m/%Y}."
     )
 
-st.subheader("8. 💬 Hỏi trợ lý chi tiêu")
+st.subheader("7. 💬 Hỏi trợ lý chi tiêu")
 st.caption(
     "Bạn có thể hỏi về một món đồ đang định mua, cách chia ngân sách hoặc nên mua ngay hay để dành lần sau. "
     "Trợ lý sẽ tham khảo số liệu bạn vừa nhập để gợi ý."
@@ -734,7 +564,7 @@ for message in st.session_state.spending_chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-user_question = st.chat_input("Ví dụ: Mình có nên mua đôi giày này tháng này không?")
+user_question = st.chat_input("Ví dụ: Chúc một ngày tốt lành ?")
 if user_question:
     st.session_state.spending_chat_history.append(
         {"role": "user", "content": user_question}
