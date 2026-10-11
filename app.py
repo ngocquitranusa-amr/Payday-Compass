@@ -610,7 +610,7 @@ if history_access_code:
                             if row["currency"] == "VND"
                             else f"${row['after_living']:,.2f}"
                         ),
-                        "Đã lưu lúc": row["saved_at"].strftime("%d/%m/%Y %H:%M"),
+                        "Đã lưu lúc": str(row["saved_at"]),
                     }
                     for row in saved_history
                 ],
