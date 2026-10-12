@@ -594,7 +594,9 @@ if history_access_code:
                 [
                     {
                         "Tháng": row["month_key"],
-                        "Ngày nhận lương": row["payday"].strftime("%d/%m/%Y"),
+                        "Ngày nhận lương": date.fromisoformat(
+                            str(row["payday"])
+                        ).strftime("%d/%m/%Y"),
                         "Đơn vị": row["currency"],
                         "Số dư dự kiến": money(row["projected_remaining"])
                         if row["currency"] == currency
