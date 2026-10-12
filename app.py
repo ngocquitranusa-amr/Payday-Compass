@@ -199,7 +199,7 @@ def load_monthly_history(owner_hash):
     try:
         cursor = connection.execute(
             """
-            SELECT month_key, currency, current_balance, payday,
+            SELECT id, month_key, currency, current_balance, payday,
                    projected_remaining, after_living, saved_at
             FROM monthly_history
             WHERE owner_hash = ?
@@ -209,6 +209,30 @@ def load_monthly_history(owner_hash):
             (owner_hash,),
         )
         return cursor.fetchall()
+    finally:
+        connection.close()
+
+
+def delete_monthly_history_record(owner_hash, record_id):
+    connection = get_db_connection()
+    try:
+        connection.execute(
+            "DELETE FROM monthly_history WHERE owner_hash = ? AND id = ?",
+            (owner_hash, record_id),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def delete_all_monthly_history(owner_hash):
+    connection = get_db_connection()
+    try:
+        connection.execute(
+            "DELETE FROM monthly_history WHERE owner_hash = ?",
+            (owner_hash,),
+        )
+        connection.commit()
     finally:
         connection.close()
 
@@ -642,6 +666,33 @@ with st.sidebar:
                             st.caption(f"Ngày nhận lương: {payday_label}")
                             st.write(f"**Số dư dự kiến:** {projected_label}")
                             st.write(f"**Còn lại sau sinh hoạt:** {living_label}")
+                            confirm_delete = st.checkbox(
+                                "Xác nhận xóa lần lưu này",
+                                key=f"confirm_delete_history_{row['id']}",
+                            )
+                            if st.button(
+                                "🗑️ Xóa lần lưu này",
+                                key=f"delete_history_{row['id']}",
+                                use_container_width=True,
+                                disabled=not confirm_delete,
+                            ):
+                                delete_monthly_history_record(
+                                    history_owner_hash, row["id"]
+                                )
+                                st.rerun()
+                    with st.expander("🧹 Xóa toàn bộ lịch sử"):
+                        confirm_delete_all = st.checkbox(
+                            "Xác nhận xóa tất cả lịch sử của mã này",
+                            key="confirm_delete_all_history",
+                        )
+                        if st.button(
+                            "Xóa tất cả",
+                            key="delete_all_history",
+                            use_container_width=True,
+                            disabled=not confirm_delete_all,
+                        ):
+                            delete_all_monthly_history(history_owner_hash)
+                            st.rerun()
                 else:
                     st.caption("Chưa có lịch sử. Bấm lưu để tạo bản ghi đầu tiên.")
             except Exception as exc:
