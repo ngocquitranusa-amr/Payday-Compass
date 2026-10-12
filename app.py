@@ -810,7 +810,7 @@ for message in st.session_state.spending_chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-user_question = st.chat_input("Ví dụ: Mình có nên mua đôi giày này tháng này không?")
+user_question = st.chat_input("Chào Bạn ?")
 if user_question:
     st.session_state.spending_chat_history.append(
         {"role": "user", "content": user_question}
