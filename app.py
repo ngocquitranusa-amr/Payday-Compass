@@ -6,8 +6,9 @@ import hashlib
 import math
 import os
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -122,6 +123,19 @@ def amount_input(label, initial_value, key, use_vnd, help_text=None):
 
 
 DB_PATH = Path(__file__).resolve().with_name("payday_compass.db")
+VIETNAM_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def vietnam_now():
+    return datetime.now(VIETNAM_TIMEZONE)
+
+
+def format_history_timestamp(value):
+    saved_time = datetime.fromisoformat(str(value))
+    if saved_time.tzinfo is None:
+        # Older SQLite rows used CURRENT_TIMESTAMP, which is UTC.
+        saved_time = saved_time.replace(tzinfo=ZoneInfo("UTC"))
+    return saved_time.astimezone(VIETNAM_TIMEZONE).strftime("%d/%m/%Y %H:%M:%S")
 
 
 def get_db_connection():
@@ -159,8 +173,8 @@ def save_monthly_history(owner_hash, month_key, currency_code, snapshot):
             """
             INSERT INTO monthly_history
                 (owner_hash, month_key, currency, current_balance, payday,
-                 projected_remaining, after_living, snapshot_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 projected_remaining, after_living, snapshot_json, saved_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 owner_hash,
@@ -171,6 +185,7 @@ def save_monthly_history(owner_hash, month_key, currency_code, snapshot):
                 snapshot["projected_remaining"],
                 snapshot["after_living"],
                 json.dumps(snapshot, ensure_ascii=False),
+                vietnam_now().isoformat(timespec="seconds"),
             ),
         )
         connection.commit()
@@ -206,6 +221,26 @@ payment_options = (
 payment_method = st.selectbox("Ngân hàng / phương thức thanh toán", payment_options)
 
 
+@st.fragment(run_every=30)
+def show_vietnam_clock():
+    current_time = vietnam_now()
+    st.markdown(
+        f"""
+        <div style="text-align:left; border:1px solid #e5eaf1; background:#f7f9fc;
+                    border-radius:12px; padding:8px 12px; line-height:1.35;">
+          <div style="font-size:0.72rem; color:#6b7280;">🕒 GIỜ VIỆT NAM</div>
+          <div style="font-size:1rem; font-weight:650; color:#243247;">
+            {current_time:%H:%M:%S}
+          </div>
+          <div style="font-size:0.75rem; color:#6b7280;">
+            {current_time:%d/%m/%Y}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 st.title("🧭 Payday Compass")
 st.subheader("Biết mình còn bao nhiêu tiền an toàn để tiêu")
 st.write(
@@ -239,7 +274,7 @@ else:
     )
 
 st.subheader("1. Tình hình tiền hiện tại")
-now = date.today()
+now = vietnam_now().date()
 col_balance, col_payday, col_paycheck = st.columns(3)
 with col_balance:
     current_balance = amount_input(
@@ -534,97 +569,85 @@ if projected_after_payday < 0:
 else:
     st.success(f"Dự kiến còn lại: **{money(projected_after_payday)}**.")
 
-st.subheader("5. 🗂️ Lịch sử kế hoạch theo tháng")
-st.caption(
-    "Lưu ảnh chụp kế hoạch hiện tại vào SQLite và xem lại các lần đã lưu. "
-    "Mỗi lần bấm lưu sẽ tạo một bản ghi mới."
-)
-history_access_code = st.text_input(
-    "Mã riêng tư của bạn",
-    type="password",
-    help="Tạo một mã khó đoán và dùng lại mã đó để xem lịch sử. Không chia sẻ mã này.",
-    key="history_access_code",
-)
-if history_access_code:
-    history_owner_hash = hashlib.sha256(history_access_code.encode("utf-8")).hexdigest()
-    save_history_col, _ = st.columns([1, 2])
-    with save_history_col:
-        save_history_clicked = st.button(
-            "💾 Lưu kế hoạch tháng này", use_container_width=True
+with st.sidebar:
+    with st.container(border=True, key="history_sidebar_card"):
+        show_vietnam_clock()
+        st.markdown("### 🗂️ Lịch sử kế hoạch")
+        st.caption("Lưu và xem lại các kế hoạch đã lưu.")
+        history_access_code = st.text_input(
+            "Mã riêng tư",
+            type="password",
+            help="Dùng lại đúng mã này để xem lịch sử. Không chia sẻ mã.",
+            key="history_access_code",
         )
-    if save_history_clicked:
-        history_snapshot = {
-            "currency": currency,
-            "current_balance": current_balance,
-            "payday": payday.isoformat(),
-            "paycheck_amount": paycheck_amount,
-            "other_income": other_income,
-            "savings_reserve": savings_reserve,
-            "emergency_buffer": emergency_buffer,
-            "living_budget_limit": living_budget_limit,
-            "bills": [
-                {
-                    "name": bill["name"],
-                    "amount": bill["amount"],
-                    "due_date": bill["due_date"].isoformat(),
-                    "paid": bill["paid"],
+        if history_access_code:
+            history_owner_hash = hashlib.sha256(
+                history_access_code.encode("utf-8")
+            ).hexdigest()
+            save_history_clicked = st.button(
+                "💾 Lưu kế hoạch tháng này", use_container_width=True
+            )
+            if save_history_clicked:
+                history_snapshot = {
+                    "currency": currency,
+                    "current_balance": current_balance,
+                    "payday": payday.isoformat(),
+                    "paycheck_amount": paycheck_amount,
+                    "other_income": other_income,
+                    "savings_reserve": savings_reserve,
+                    "emergency_buffer": emergency_buffer,
+                    "living_budget_limit": living_budget_limit,
+                    "bills": [
+                        {
+                            "name": bill["name"],
+                            "amount": bill["amount"],
+                            "due_date": bill["due_date"].isoformat(),
+                            "paid": bill["paid"],
+                        }
+                        for bill in bills
+                    ],
+                    "living_expenses": living_expenses,
+                    "selected_living_total": selected_living_total,
+                    "projected_remaining": projected_after_payday,
+                    "after_living": remaining_after_selected_living,
                 }
-                for bill in bills
-            ],
-            "living_expenses": living_expenses,
-            "selected_living_total": selected_living_total,
-            "projected_remaining": projected_after_payday,
-            "after_living": remaining_after_selected_living,
-        }
-        try:
-            save_monthly_history(
-                history_owner_hash,
-                date.today().strftime("%Y-%m"),
-                currency,
-                history_snapshot,
-            )
-            st.success("Đã lưu kế hoạch vào lịch sử SQLite.")
-        except Exception as exc:
-            st.error(f"Chưa lưu được lịch sử: {exc}")
-    try:
-        saved_history = load_monthly_history(history_owner_hash)
-        if saved_history:
-            st.markdown("**Các lần lưu gần đây**")
-            st.dataframe(
-                [
-                    {
-                        "Tháng": row["month_key"],
-                        "Ngày nhận lương": date.fromisoformat(
-                            str(row["payday"])
-                        ).strftime("%d/%m/%Y"),
-                        "Đơn vị": row["currency"],
-                        "Số dư dự kiến": money(row["projected_remaining"])
-                        if row["currency"] == currency
-                        else (
-                            f"{row['projected_remaining']:,.0f} VND"
-                            if row["currency"] == "VND"
-                            else f"${row['projected_remaining']:,.2f}"
-                        ),
-                        "Còn lại sau sinh hoạt": money(row["after_living"])
-                        if row["currency"] == currency
-                        else (
-                            f"{row['after_living']:,.0f} VND"
-                            if row["currency"] == "VND"
-                            else f"${row['after_living']:,.2f}"
-                        ),
-                        "Đã lưu lúc": str(row["saved_at"]),
-                    }
-                    for row in saved_history
-                ],
-                use_container_width=True,
-                hide_index=True,
-            )
+                try:
+                    save_monthly_history(
+                        history_owner_hash,
+                        vietnam_now().strftime("%Y-%m"),
+                        currency,
+                        history_snapshot,
+                    )
+                    st.success("Đã lưu kế hoạch.")
+                except Exception as exc:
+                    st.error(f"Chưa lưu được: {exc}")
+            try:
+                saved_history = load_monthly_history(history_owner_hash)
+                if saved_history:
+                    st.markdown("**Các lần lưu gần đây**")
+                    for row in saved_history:
+                        saved_time_label = format_history_timestamp(row["saved_at"])
+                        with st.expander(
+                            f"{row['month_key']} · {row['currency']} · {saved_time_label}"
+                        ):
+                            payday_label = date.fromisoformat(
+                                str(row["payday"])
+                            ).strftime("%d/%m/%Y")
+                            if row["currency"] == "VND":
+                                projected_label = f"{row['projected_remaining']:,.0f} VND"
+                                living_label = f"{row['after_living']:,.0f} VND"
+                            else:
+                                projected_label = f"${row['projected_remaining']:,.2f}"
+                                living_label = f"${row['after_living']:,.2f}"
+                            st.caption(f"Ngày nhận lương: {payday_label}")
+                            st.write(f"**Số dư dự kiến:** {projected_label}")
+                            st.write(f"**Còn lại sau sinh hoạt:** {living_label}")
+                else:
+                    st.caption("Chưa có lịch sử. Bấm lưu để tạo bản ghi đầu tiên.")
+            except Exception as exc:
+                st.error(f"Không đọc được lịch sử: {exc}")
         else:
-            st.caption("Chưa có lịch sử cho mã này. Nhấn nút lưu để tạo bản ghi đầu tiên.")
-    except Exception as exc:
-        st.error(f"Không đọc được lịch sử SQLite: {exc}")
-else:
-    st.info("Nhập mã riêng tư để lưu kế hoạch và xem lịch sử của bạn.")
+            st.info("Nhập mã riêng tư để lưu và xem lịch sử.")
 
 st.subheader("6. 🛍️ Kiểm tra trước khi mua")
 st.caption(
@@ -698,7 +721,7 @@ elif goal_monthly_saving <= 0:
     st.warning("Nhập số tiền có thể để dành mỗi tháng lớn hơn 0 để app tính thời gian.")
 else:
     months_to_goal = math.ceil(goal_remaining / goal_monthly_saving)
-    current_date = date.today()
+    current_date = vietnam_now().date()
     target_month_index = current_date.month - 1 + months_to_goal
     target_year = current_date.year + target_month_index // 12
     target_month = target_month_index % 12 + 1
@@ -845,7 +868,7 @@ csv_data = ("\ufeff" + csv_buffer.getvalue()).encode("utf-8")
 st.download_button(
     "⬇️ Tải kế hoạch ngân sách CSV",
     data=csv_data,
-    file_name=f"payday_compass_{date.today():%Y%m%d}.csv",
+    file_name=f"payday_compass_{vietnam_now():%Y%m%d}.csv",
     mime="text/csv",
     use_container_width=True,
 )
