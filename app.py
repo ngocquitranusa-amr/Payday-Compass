@@ -46,6 +46,13 @@ st.markdown(
         color: #29352f !important;
         letter-spacing: -0.025em;
     }
+    h1 {
+        font-size: 2rem !important;
+    }
+    h2, h3 {
+        font-size: 1.25rem !important;
+        font-weight: 650 !important;
+    }
     div[data-testid="stWidgetLabel"] p {
         color: #515a54;
         font-weight: 500;
@@ -112,6 +119,18 @@ st.markdown(
         border-radius: 10px;
         padding: 10px 12px;
         min-height: 84px;
+    }
+    div.st-key-compact_section3 [data-testid="stMetric"]:last-child,
+    div.st-key-compact_section4 [data-testid="stMetric"]:last-child {
+        background: #f1f6f1;
+        border-color: #dce8dc;
+    }
+    div.st-key-compact_section3 [data-testid="stMetric"]:last-child [data-testid="stMetricValue"],
+    div.st-key-compact_section4 [data-testid="stMetric"]:last-child [data-testid="stMetricValue"] {
+        color: #315d3c;
+    }
+    div[data-testid="stMarkdownContainer"] p {
+        color: #4f5952;
     }
     </style>
     """,
@@ -327,7 +346,7 @@ st.caption(
     f"{currency} · {payment_method} · Chỉ dùng để minh họa, chưa kết nối ngân hàng hoặc tự chuyển tiền."
 )
 
-st.subheader("1. Tình hình tiền hiện tại")
+st.subheader("Tình hình tiền hiện tại")
 now = vietnam_now().date()
 col_balance, col_payday, col_paycheck = st.columns(3)
 with col_balance:
@@ -369,7 +388,7 @@ if payday < now:
 
 days_until_payday = (payday - now).days
 
-st.subheader("2. Hóa đơn và chi tiêu dự kiến")
+st.subheader("Hóa đơn và chi tiêu dự kiến")
 st.markdown("#### Hóa đơn chưa thanh toán")
 bill_count = st.number_input(
     "Số hóa đơn muốn thêm", min_value=1, max_value=12, value=1, step=1
@@ -522,7 +541,7 @@ with st.container(border=True, key="living_budget_card"):
     else:
         st.caption("Nhập mức chi tối đa lớn hơn 0 để bật cảnh báo.")
 
-st.subheader("3. 🧮 Ngân sách đến kỳ lương")
+st.subheader("Ngân sách đến kỳ lương")
 funds_before_payday = current_balance + other_income
 money_after_reserves = funds_before_payday - total_due - savings_reserve - emergency_buffer
 shortfall = max(0.0, -money_after_reserves)
@@ -596,7 +615,7 @@ with section1_total.container():
             "Tổng này tự cập nhật khi bạn thay đổi số liệu. Chi phí sinh hoạt chỉ bị trừ khi bạn tích chọn ở mục 2."
         )
 
-st.subheader("4. 💰 Dự kiến còn lại sau khi nhận lương")
+st.subheader("Dự kiến còn lại sau khi nhận lương")
 st.caption(
     "Tính cả hóa đơn chưa trả (kể cả hóa đơn đến hạn sau ngày lương), tiền tiết kiệm và khoản dự phòng."
 )
@@ -626,7 +645,7 @@ else:
 with st.sidebar:
     with st.container(border=True, key="history_sidebar_card"):
         show_vietnam_clock()
-        st.markdown("### 🗂️ Lịch sử kế hoạch")
+        st.markdown("### Lịch sử kế hoạch")
         st.caption("Lưu và xem lại các kế hoạch đã lưu.")
         history_access_code = st.text_input(
             "Mã riêng tư",
@@ -730,7 +749,7 @@ with st.sidebar:
         else:
             st.info("Nhập mã riêng tư để lưu và xem lịch sử.")
 
-st.subheader("5. 🛍️ Kiểm tra trước khi mua")
+st.subheader("Kiểm tra trước khi mua")
 st.caption(
     "Ước tính số dư sau khi mua món đồ, sau khi đã tính hóa đơn, tiền giữ lại và chi phí sinh hoạt bạn chọn."
 )
@@ -765,7 +784,7 @@ with st.container(border=True, key="purchase_check"):
     else:
         st.caption("Nhập giá món đồ để xem thử tác động đến số dư.")
 
-st.subheader("6. 🎯 Để dành mua món bạn muốn")
+st.subheader("Để dành mua món bạn muốn")
 st.caption(
     "Nhập sản phẩm, giá, số tiền bạn đã dành dụm và số tiền bạn có thể tiết kiệm mỗi tháng. "
     "App sẽ ước tính thời gian cần để mua được món đó."
@@ -816,7 +835,7 @@ else:
         f"khoảng ngày {estimated_purchase_date:%d/%m/%Y}."
     )
 
-st.subheader("7. 💬 Hỏi trợ lý chi tiêu")
+st.subheader("Hỏi trợ lý chi tiêu")
 st.caption(
     "Bạn có thể hỏi về một món đồ đang định mua, cách chia ngân sách hoặc nên mua ngay hay để dành lần sau. "
     "Trợ lý sẽ tham khảo số liệu bạn vừa nhập để gợi ý."
