@@ -25,59 +25,59 @@ st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(180deg, #f7faff 0, #ffffff 280px);
-        color: #172b4d;
+        background: #fbfbfa;
+        color: #252b33;
     }
     .block-container {
-        max-width: 1180px;
-        padding-top: 2rem;
-        padding-bottom: 3rem;
+        max-width: 1080px;
+        padding-top: 1.35rem;
+        padding-bottom: 2.5rem;
     }
     section[data-testid="stSidebar"] {
-        background: #f5f8fd;
-        border-right: 1px solid #e5ebf4;
+        background: #f7f7f5;
+        border-right: 1px solid #e8e8e5;
     }
     h1 {
-        color: #17345f !important;
-        letter-spacing: -0.035em;
-        font-weight: 750 !important;
+        color: #202923 !important;
+        letter-spacing: -0.04em;
+        font-weight: 700 !important;
     }
     h2, h3, h4 {
-        color: #203b61 !important;
-        letter-spacing: -0.02em;
+        color: #29352f !important;
+        letter-spacing: -0.025em;
     }
     div[data-testid="stWidgetLabel"] p {
-        color: #344967;
-        font-weight: 550;
+        color: #515a54;
+        font-weight: 500;
     }
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: #e4eaf3 !important;
-        border-radius: 16px !important;
-        background-color: rgba(255, 255, 255, 0.88);
+        border-color: #e7e8e4 !important;
+        border-radius: 12px !important;
+        background-color: #ffffff;
     }
     div[data-testid="stTextInput"] input,
     div[data-testid="stDateInput"] input,
     div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
-        border-radius: 10px;
+        border-radius: 8px;
     }
     div.stButton > button,
     div[data-testid="stDownloadButton"] > button {
-        border-radius: 10px;
-        min-height: 2.65rem;
-        font-weight: 600;
+        border-radius: 8px;
+        min-height: 2.45rem;
+        font-weight: 550;
         transition: all 120ms ease-in-out;
     }
     div.stButton > button:hover,
     div[data-testid="stDownloadButton"] > button:hover {
-        border-color: #5b8def;
-        color: #174ea6;
+        border-color: #8b9b8f;
+        color: #344d3c;
     }
     div[data-testid="stAlert"] {
-        border-radius: 12px;
+        border-radius: 9px;
     }
     div[data-testid="stExpander"] {
-        border-color: #e4eaf3;
-        border-radius: 12px;
+        border-color: #e7e8e4;
+        border-radius: 10px;
     }
     div.st-key-compact_section3 [data-testid="stMetricValue"],
     div.st-key-compact_section4 [data-testid="stMetricValue"],
@@ -96,22 +96,22 @@ st.markdown(
         font-size: 0.78rem !important;
     }
     div.st-key-compact_section1_totals [data-testid="stMetric"] {
-        background: #f7f9fc;
-        border: 1px solid #e5eaf1;
-        border-radius: 12px;
-        padding: 12px 14px;
-        min-height: 92px;
+        background: #fafbf9;
+        border: 1px solid #e9ebe7;
+        border-radius: 10px;
+        padding: 10px 12px;
+        min-height: 84px;
     }
     div.st-key-compact_section3 [data-testid="stMetric"],
     div.st-key-compact_section4 [data-testid="stMetric"],
     div.st-key-living_budget_card [data-testid="stMetric"],
     div.st-key-purchase_check [data-testid="stMetric"],
     div.st-key-living_result [data-testid="stMetric"] {
-        background: #f7f9fc;
-        border: 1px solid #e5eaf1;
-        border-radius: 12px;
-        padding: 12px 14px;
-        min-height: 92px;
+        background: #fafbf9;
+        border: 1px solid #e9ebe7;
+        border-radius: 10px;
+        padding: 10px 12px;
+        min-height: 84px;
     }
     </style>
     """,
@@ -307,53 +307,25 @@ def show_vietnam_clock():
     )
 
 
-st.title("🧭 Payday Compass")
-st.markdown("### Biết mình còn bao nhiêu tiền an toàn để tiêu")
-st.write(
-    "Lập kế hoạch từ hôm nay đến kỳ lương tiếp theo, theo dõi hóa đơn và cân nhắc chi tiêu."
+st.title("Payday Compass")
+st.caption("Lập kế hoạch chi tiêu từ hôm nay đến kỳ lương tiếp theo.")
+
+currency_col, payment_col = st.columns([1, 2])
+with currency_col:
+    currency = st.selectbox("Đơn vị tiền", ["VND", "USD"], key="currency_choice")
+is_vnd = currency == "VND"
+unit_label = "VND" if is_vnd else "USD"
+payment_options = (
+    ["Sacombank", "VietinBank", "MB Bank"] if is_vnd else ["Venmo", "Zelle"]
 )
-
-with st.container(border=True, key="app_settings"):
-    st.markdown("#### ⚙️ Cài đặt")
-    currency_col, payment_col = st.columns(2)
-    with currency_col:
-        currency = st.selectbox(
-            "Đơn vị tiền tệ", ["VND", "USD"], key="currency_choice"
-        )
-    is_vnd = currency == "VND"
-    unit_label = "VND" if is_vnd else "USD"
-    payment_options = (
-        ["Sacombank", "VietinBank", "MB Bank"] if is_vnd else ["Venmo", "Zelle"]
+with payment_col:
+    payment_method = st.selectbox(
+        "Ngân hàng / phương thức minh họa", payment_options
     )
-    with payment_col:
-        payment_method = st.selectbox(
-            "Ngân hàng / phương thức minh họa", payment_options
-        )
 
-feature_columns = st.columns(4)
-features = [
-    ("💵", "Tiền hiện có", "Nhập số dư hiện tại."),
-    ("🧾", "Hóa đơn sắp tới", "Liệt kê khoản chưa thanh toán."),
-    ("🎯", "Tiền cần giữ lại", "Đặt tiết kiệm và khoản dự phòng."),
-    ("📆", "Mức chi mỗi ngày", "Ước tính đến kỳ lương tới."),
-]
-for column, (icon, title, detail) in zip(feature_columns, features):
-    with column:
-        with st.container(border=True):
-            st.markdown(f"### {icon}")
-            st.markdown(f"**{title}**")
-            st.caption(detail)
-
-if is_vnd:
-    st.info(
-        f"Đang dùng VND và chọn {payment_method}. Đây là lựa chọn để minh họa trong app; "
-        "app chưa kết nối tài khoản hoặc tự chuyển tiền. Bạn cần xác nhận giao dịch trong ứng dụng ngân hàng chính thức."
-    )
-else:
-    st.info(
-        f"Đang dùng USD và chọn {payment_method}. Đây là lựa chọn để minh họa trong app; "
-        "app chưa kết nối tài khoản hoặc tự chuyển tiền. Bạn cần xác nhận giao dịch trong ứng dụng chính thức."
-    )
+st.caption(
+    f"{currency} · {payment_method} · Chỉ dùng để minh họa, chưa kết nối ngân hàng hoặc tự chuyển tiền."
+)
 
 st.subheader("1. Tình hình tiền hiện tại")
 now = vietnam_now().date()
