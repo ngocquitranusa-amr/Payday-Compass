@@ -18,12 +18,67 @@ import streamlit as st
 st.set_page_config(
     page_title="Payday Compass",
     page_icon="🧭",
-    layout="centered",
+    layout="wide",
 )
 
 st.markdown(
     """
     <style>
+    .stApp {
+        background: linear-gradient(180deg, #f7faff 0, #ffffff 280px);
+        color: #172b4d;
+    }
+    .block-container {
+        max-width: 1180px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+    section[data-testid="stSidebar"] {
+        background: #f5f8fd;
+        border-right: 1px solid #e5ebf4;
+    }
+    h1 {
+        color: #17345f !important;
+        letter-spacing: -0.035em;
+        font-weight: 750 !important;
+    }
+    h2, h3, h4 {
+        color: #203b61 !important;
+        letter-spacing: -0.02em;
+    }
+    div[data-testid="stWidgetLabel"] p {
+        color: #344967;
+        font-weight: 550;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #e4eaf3 !important;
+        border-radius: 16px !important;
+        background-color: rgba(255, 255, 255, 0.88);
+    }
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        border-radius: 10px;
+    }
+    div.stButton > button,
+    div[data-testid="stDownloadButton"] > button {
+        border-radius: 10px;
+        min-height: 2.65rem;
+        font-weight: 600;
+        transition: all 120ms ease-in-out;
+    }
+    div.stButton > button:hover,
+    div[data-testid="stDownloadButton"] > button:hover {
+        border-color: #5b8def;
+        color: #174ea6;
+    }
+    div[data-testid="stAlert"] {
+        border-radius: 12px;
+    }
+    div[data-testid="stExpander"] {
+        border-color: #e4eaf3;
+        border-radius: 12px;
+    }
     div.st-key-compact_section3 [data-testid="stMetricValue"],
     div.st-key-compact_section4 [data-testid="stMetricValue"],
     div.st-key-compact_section1_totals [data-testid="stMetricValue"],
@@ -62,11 +117,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-currency = st.selectbox("Đơn vị tiền tệ", ["VND", "USD"], key="currency_choice")
-is_vnd = currency == "VND"
-unit_label = "VND" if is_vnd else "USD"
 
 
 def money(amount):
@@ -237,14 +287,6 @@ def delete_all_monthly_history(owner_hash):
         connection.close()
 
 
-payment_options = (
-    ["Sacombank", "VietinBank", "MB Bank"]
-    if is_vnd
-    else ["Venmo", "Zelle"]
-)
-payment_method = st.selectbox("Ngân hàng / phương thức thanh toán", payment_options)
-
-
 @st.fragment(run_every=30)
 def show_vietnam_clock():
     current_time = vietnam_now()
@@ -266,11 +308,27 @@ def show_vietnam_clock():
 
 
 st.title("🧭 Payday Compass")
-st.subheader("Biết mình còn bao nhiêu tiền an toàn để tiêu")
+st.markdown("### Biết mình còn bao nhiêu tiền an toàn để tiêu")
 st.write(
-    "Lập kế hoạch từ hôm nay đến ngày nhận lương tiếp theo: giữ riêng tiền hóa đơn, "
-    "tiền tiết kiệm và khoản dự phòng trước khi ước tính ngân sách chi tiêu."
+    "Lập kế hoạch từ hôm nay đến kỳ lương tiếp theo, theo dõi hóa đơn và cân nhắc chi tiêu."
 )
+
+with st.container(border=True, key="app_settings"):
+    st.markdown("#### ⚙️ Cài đặt")
+    currency_col, payment_col = st.columns(2)
+    with currency_col:
+        currency = st.selectbox(
+            "Đơn vị tiền tệ", ["VND", "USD"], key="currency_choice"
+        )
+    is_vnd = currency == "VND"
+    unit_label = "VND" if is_vnd else "USD"
+    payment_options = (
+        ["Sacombank", "VietinBank", "MB Bank"] if is_vnd else ["Venmo", "Zelle"]
+    )
+    with payment_col:
+        payment_method = st.selectbox(
+            "Ngân hàng / phương thức minh họa", payment_options
+        )
 
 feature_columns = st.columns(4)
 features = [
@@ -700,7 +758,7 @@ with st.sidebar:
         else:
             st.info("Nhập mã riêng tư để lưu và xem lịch sử.")
 
-st.subheader("6. 🛍️ Kiểm tra trước khi mua")
+st.subheader("5. 🛍️ Kiểm tra trước khi mua")
 st.caption(
     "Ước tính số dư sau khi mua món đồ, sau khi đã tính hóa đơn, tiền giữ lại và chi phí sinh hoạt bạn chọn."
 )
@@ -735,7 +793,7 @@ with st.container(border=True, key="purchase_check"):
     else:
         st.caption("Nhập giá món đồ để xem thử tác động đến số dư.")
 
-st.subheader("7. 🎯 Để dành mua món bạn muốn")
+st.subheader("6. 🎯 Để dành mua món bạn muốn")
 st.caption(
     "Nhập sản phẩm, giá, số tiền bạn đã dành dụm và số tiền bạn có thể tiết kiệm mỗi tháng. "
     "App sẽ ước tính thời gian cần để mua được món đó."
@@ -786,7 +844,7 @@ else:
         f"khoảng ngày {estimated_purchase_date:%d/%m/%Y}."
     )
 
-st.subheader("8. 💬 Hỏi trợ lý chi tiêu")
+st.subheader("7. 💬 Hỏi trợ lý chi tiêu")
 st.caption(
     "Bạn có thể hỏi về một món đồ đang định mua, cách chia ngân sách hoặc nên mua ngay hay để dành lần sau. "
     "Trợ lý sẽ tham khảo số liệu bạn vừa nhập để gợi ý."
@@ -810,7 +868,7 @@ for message in st.session_state.spending_chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-user_question = st.chat_input("Chào Bạn ?")
+user_question = st.chat_input("Ví dụ: Mình có nên mua đôi giày này tháng này không?")
 if user_question:
     st.session_state.spending_chat_history.append(
         {"role": "user", "content": user_question}
