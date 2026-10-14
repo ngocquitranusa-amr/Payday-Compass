@@ -132,6 +132,33 @@ st.markdown(
     div[data-testid="stMarkdownContainer"] p {
         color: #4f5952;
     }
+    .quick-start {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin: 0.4rem 0 1.4rem;
+    }
+    .quick-start a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.55rem 0.8rem;
+        border: 1px solid #e6e9e4;
+        border-radius: 999px;
+        background: #fff;
+        color: #3c5141 !important;
+        font-size: 0.88rem;
+        text-decoration: none !important;
+    }
+    .quick-start a:hover {
+        border-color: #aab9aa;
+        background: #f4f7f3;
+    }
+    .step-anchor {
+        display: block;
+        height: 0;
+        scroll-margin-top: 1rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -327,7 +354,18 @@ def show_vietnam_clock():
 
 
 st.title("Payday Compass")
-st.caption("Lập kế hoạch chi tiêu từ hôm nay đến kỳ lương tiếp theo.")
+st.caption("Lập kế hoạch đến kỳ lương tiếp theo trong 3 bước đơn giản.")
+st.markdown(
+    """
+    <nav class="quick-start" aria-label="Đi đến các bước">
+      <a href="#step-money"><strong>1</strong> Tiền & ngày lương</a>
+      <a href="#step-expenses"><strong>2</strong> Hóa đơn & sinh hoạt</a>
+      <a href="#step-results"><strong>3</strong> Xem kết quả</a>
+      <a href="#step-tools">Mục tiêu & công cụ</a>
+    </nav>
+    """,
+    unsafe_allow_html=True,
+)
 
 currency_col, payment_col = st.columns([1, 2])
 with currency_col:
@@ -346,7 +384,8 @@ st.caption(
     f"{currency} · {payment_method} · Chỉ dùng để minh họa, chưa kết nối ngân hàng hoặc tự chuyển tiền."
 )
 
-st.subheader("Tình hình tiền hiện tại")
+st.markdown('<span id="step-money" class="step-anchor"></span>', unsafe_allow_html=True)
+st.subheader("1. Tiền hiện tại và ngày nhận lương")
 now = vietnam_now().date()
 col_balance, col_payday, col_paycheck = st.columns(3)
 with col_balance:
@@ -388,7 +427,8 @@ if payday < now:
 
 days_until_payday = (payday - now).days
 
-st.subheader("Hóa đơn và chi tiêu dự kiến")
+st.markdown('<span id="step-expenses" class="step-anchor"></span>', unsafe_allow_html=True)
+st.subheader("2. Hóa đơn và chi phí sinh hoạt")
 st.markdown("#### Hóa đơn chưa thanh toán")
 bill_count = st.number_input(
     "Số hóa đơn muốn thêm", min_value=1, max_value=12, value=1, step=1
@@ -448,7 +488,7 @@ total_all_unpaid = sum(bill["amount"] for bill in unpaid_bills)
 
 st.markdown("#### Chi phí sinh hoạt")
 st.caption(
-    "Nhập các khoản sinh hoạt dự kiến. Chỉ những khoản được tích chọn mới bị trừ trong kịch bản chi tiêu."
+    "Nhập các khoản sinh hoạt dự kiến. Khoản được tích chọn sẽ được tính vào kế hoạch chi tiêu và số tiền còn lại."
 )
 living_expense_count = st.number_input(
     "Số khoản chi sinh hoạt", min_value=1, max_value=12, value=1, step=1
@@ -541,34 +581,37 @@ with st.container(border=True, key="living_budget_card"):
     else:
         st.caption("Nhập mức chi tối đa lớn hơn 0 để bật cảnh báo.")
 
-st.subheader("Ngân sách đến kỳ lương")
+st.markdown('<span id="step-results" class="step-anchor"></span>', unsafe_allow_html=True)
+st.subheader("3. Còn bao nhiêu để chi đến kỳ lương?")
 funds_before_payday = current_balance + other_income
-money_after_reserves = funds_before_payday - total_due - savings_reserve - emergency_buffer
-shortfall = max(0.0, -money_after_reserves)
-safe_to_spend = max(0.0, money_after_reserves)
+money_after_fixed_reserves = (
+    funds_before_payday - total_due - savings_reserve - emergency_buffer
+)
+money_after_planned_living = money_after_fixed_reserves - selected_living_total
+shortfall = max(0.0, -money_after_planned_living)
+safe_to_spend = max(0.0, money_after_planned_living)
 days_for_daily_budget = max(1, days_until_payday)
 daily_limit = safe_to_spend / days_for_daily_budget
 
 with st.container(border=True, key="compact_section3"):
-    metric1, metric2, metric3 = st.columns(3)
+    metric1, metric2, metric3, metric4 = st.columns(4)
     metric1.metric("🧾 Hóa đơn đến hạn", money(total_due))
-    metric2.metric(
-        "🔒 Tiền tiết kiệm + dự phòng",
-        money(savings_reserve + emergency_buffer),
-    )
-    metric3.metric("✅ Còn có thể chi", money(safe_to_spend))
+    metric2.metric("🛒 Sinh hoạt đã chọn", money(selected_living_total))
+    metric3.metric("🔒 Tiết kiệm + dự phòng", money(savings_reserve + emergency_buffer))
+    metric4.metric("Còn có thể chi", money(safe_to_spend))
     st.caption(
-        f"📆 Bình quân khoảng **{money(daily_limit)} mỗi ngày** trong {days_for_daily_budget} ngày đến kỳ lương."
+        f"Bình quân còn khoảng **{money(daily_limit)}/ngày** trong {days_for_daily_budget} ngày đến kỳ lương, "
+        "sau khi đã giữ tiền cho các khoản ở trên."
     )
 
 if shortfall > 0:
     st.error(
-        f"Theo số liệu đã nhập, đang thiếu {money(shortfall)} để thanh toán hóa đơn, "
-        "giữ khoản tiết kiệm và khoản dự phòng như kế hoạch. Hãy kiểm tra số liệu hoặc điều chỉnh kế hoạch."
+        f"Theo số liệu đã nhập, đang thiếu {money(shortfall)} để chi trả các khoản đã chọn "
+        "và giữ tiết kiệm/dự phòng như kế hoạch. Hãy kiểm tra số liệu hoặc điều chỉnh kế hoạch."
     )
 else:
     st.success(
-        f"Sau khi trừ hóa đơn đến hạn, tiền tiết kiệm và khoản dự phòng, "
+        f"Sau khi trừ hóa đơn đến hạn, chi phí sinh hoạt đã chọn, tiết kiệm và dự phòng, "
         f"bạn còn {money(safe_to_spend)} có thể phân bổ đến kỳ lương tiếp theo."
     )
 
@@ -615,7 +658,7 @@ with section1_total.container():
             "Tổng này tự cập nhật khi bạn thay đổi số liệu. Chi phí sinh hoạt chỉ bị trừ khi bạn tích chọn ở mục 2."
         )
 
-st.subheader("Dự kiến còn lại sau khi nhận lương")
+st.subheader("Dự kiến số dư sau khi nhận lương")
 st.caption(
     "Tính cả hóa đơn chưa trả (kể cả hóa đơn đến hạn sau ngày lương), tiền tiết kiệm và khoản dự phòng."
 )
@@ -749,7 +792,8 @@ with st.sidebar:
         else:
             st.info("Nhập mã riêng tư để lưu và xem lịch sử.")
 
-st.subheader("Kiểm tra trước khi mua")
+st.markdown('<span id="step-tools" class="step-anchor"></span>', unsafe_allow_html=True)
+st.subheader("4. Thử xem có nên mua món đồ này")
 st.caption(
     "Ước tính số dư sau khi mua món đồ, sau khi đã tính hóa đơn, tiền giữ lại và chi phí sinh hoạt bạn chọn."
 )
@@ -784,12 +828,12 @@ with st.container(border=True, key="purchase_check"):
     else:
         st.caption("Nhập giá món đồ để xem thử tác động đến số dư.")
 
-st.subheader("Để dành mua món bạn muốn")
+st.subheader("5. Lập mục tiêu tiết kiệm")
 st.caption(
     "Nhập sản phẩm, giá, số tiền bạn đã dành dụm và số tiền bạn có thể tiết kiệm mỗi tháng. "
-    "App sẽ ước tính thời gian cần để mua được món đó."
+    "App sẽ ước tính thời gian cần để mua được món đó; chưa tính lãi hoặc thay đổi giá sản phẩm."
 )
-goal_name_col, goal_price_col = st.columns([2, 1])
+goal_name_col, goal_price_col, goal_date_col = st.columns([2, 1, 1])
 with goal_name_col:
     goal_product_name = st.text_input(
         "Bạn muốn mua gì?", placeholder="Ví dụ: Điện thoại, máy tính, xe đạp", key="goal_product_name"
@@ -798,6 +842,20 @@ with goal_price_col:
     goal_product_price = amount_input(
         f"Giá sản phẩm ({unit_label})", 20_000_000.0 if is_vnd else 600.0,
         f"goal_product_price_{currency}", is_vnd,
+    )
+with goal_date_col:
+    today_for_goal = vietnam_now().date()
+    target_month_index = today_for_goal.month - 1 + 6
+    default_target_year = today_for_goal.year + target_month_index // 12
+    default_target_month = target_month_index % 12 + 1
+    default_target_day = min(
+        today_for_goal.day,
+        calendar.monthrange(default_target_year, default_target_month)[1],
+    )
+    goal_target_date = st.date_input(
+        "Ngày muốn mua",
+        value=date(default_target_year, default_target_month, default_target_day),
+        key="goal_target_date",
     )
 
 goal_saved_col, goal_monthly_col = st.columns(2)
@@ -821,7 +879,7 @@ elif goal_monthly_saving <= 0:
     st.warning("Nhập số tiền có thể để dành mỗi tháng lớn hơn 0 để app tính thời gian.")
 else:
     months_to_goal = math.ceil(goal_remaining / goal_monthly_saving)
-    current_date = vietnam_now().date()
+    current_date = today_for_goal
     target_month_index = current_date.month - 1 + months_to_goal
     target_year = current_date.year + target_month_index // 12
     target_month = target_month_index % 12 + 1
@@ -829,13 +887,41 @@ else:
     estimated_purchase_date = date(target_year, target_month, target_day)
     goal_progress = min(1.0, goal_saved_amount / goal_product_price)
     st.progress(goal_progress, text=f"Đã có {goal_progress:.0%} giá sản phẩm")
-    st.success(
-        f"Còn thiếu {money(goal_remaining)}. Nếu đều đặn để dành {money(goal_monthly_saving)} mỗi tháng, "
-        f"bạn cần khoảng **{months_to_goal} tháng** và có thể mua {goal_product_name or 'món đồ này'} "
-        f"khoảng ngày {estimated_purchase_date:%d/%m/%Y}."
-    )
+    if goal_target_date < current_date:
+        st.warning("Ngày muốn mua đang ở trong quá khứ. Hãy chọn ngày hôm nay hoặc một ngày sau đó.")
+    else:
+        months_available = (
+            (goal_target_date.year - current_date.year) * 12
+            + goal_target_date.month - current_date.month
+        )
+        if goal_target_date.day < current_date.day:
+            months_available -= 1
+        if months_available <= 0:
+            st.warning(
+                f"Hạn mua đến trước kỳ tiết kiệm tháng kế tiếp. Bạn còn thiếu "
+                f"{money(goal_remaining)}; hãy tăng số tiền đã có hoặc lùi ngày mua. "
+                f"Nếu tiếp tục để dành {money(goal_monthly_saving)}/tháng, "
+                f"ước tính cần khoảng {months_to_goal} tháng để đủ tiền."
+            )
+        else:
+            required_monthly_saving = math.ceil(goal_remaining / months_available)
+            if goal_monthly_saving >= required_monthly_saving:
+                st.success(
+                    f"Kế hoạch đang đủ để kịp ngày {goal_target_date:%d/%m/%Y}. "
+                    f"Bạn cần dành ít nhất {money(required_monthly_saving)}/tháng; "
+                    f"với mức hiện tại, dự kiến đủ tiền sau khoảng {months_to_goal} tháng "
+                    f"({estimated_purchase_date:%d/%m/%Y})."
+                )
+            else:
+                st.warning(
+                    f"Để kịp ngày {goal_target_date:%d/%m/%Y}, cần dành khoảng "
+                    f"{money(required_monthly_saving)}/tháng — nhiều hơn mức hiện tại "
+                    f"{money(required_monthly_saving - goal_monthly_saving)}/tháng. "
+                    f"Với mức hiện tại, dự kiến đủ tiền sau khoảng {months_to_goal} tháng "
+                    f"({estimated_purchase_date:%d/%m/%Y})."
+                )
 
-st.subheader("Hỏi trợ lý chi tiêu")
+st.subheader("6. Hỏi trợ lý chi tiêu")
 st.caption(
     "Bạn có thể hỏi về một món đồ đang định mua, cách chia ngân sách hoặc nên mua ngay hay để dành lần sau. "
     "Trợ lý sẽ tham khảo số liệu bạn vừa nhập để gợi ý."
@@ -963,6 +1049,24 @@ for bill in bills:
         "Có" if bill["paid"] else "Không",
         "Có" if include_now else "Không",
     ])
+writer.writerow([])
+writer.writerow(["Tên chi phí sinh hoạt", f"Số tiền {currency}", "Tính vào kế hoạch"])
+for expense in living_expenses:
+    writer.writerow([
+        expense["name"],
+        f"{expense['amount']:.0f}" if is_vnd else f"{expense['amount']:.2f}",
+        "Có" if expense["include"] else "Không",
+    ])
+writer.writerow([
+    "Tổng chi phí sinh hoạt đã chọn",
+    f"{selected_living_total:.0f}" if is_vnd else f"{selected_living_total:.2f}",
+    "",
+])
+writer.writerow([
+    "Còn lại sau chi phí sinh hoạt đã chọn",
+    f"{remaining_after_selected_living:.0f}" if is_vnd else f"{remaining_after_selected_living:.2f}",
+    "",
+])
 csv_data = ("\ufeff" + csv_buffer.getvalue()).encode("utf-8")
 
 st.download_button(
@@ -975,6 +1079,7 @@ st.download_button(
 
 st.caption(
     "Payday Compass chỉ ước tính từ dữ liệu bạn nhập, không kết nối ngân hàng và không tự động thanh toán. "
-    "Mức chi mỗi ngày là gợi ý số học, không phải lời khuyên tài chính. App không lưu lịch sử sau khi tải lại trang."
+    "Lịch sử được lưu trong SQLite của môi trường đang chạy; trên Streamlit Cloud, dữ liệu có thể mất nếu máy chủ được dựng lại. "
+    "Mức chi mỗi ngày là gợi ý số học, không phải lời khuyên tài chính."
 )
 
